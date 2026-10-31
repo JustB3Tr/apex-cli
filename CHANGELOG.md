@@ -2,6 +2,9 @@
 
 ## 0.8.0
 
+- First clean GitHub runner exposed Windows short-path/canonical-path mismatches in Git saves and plugin skills. Root aliases are now normalized before containment comparisons, with a regression test.
+
+
 - Whole-turn model context with explicit interrupted-tool unknown results, orphan/invalid-exchange handling, bounded history selection and `/context inspect`. Original transcripts remain intact.
 - Read-only hub GET polling, transactional aggregate/count limits and `/room status`; existing history is preserved at capacity.
 - Encrypted backup exports, confirmed verified delete/prune, offline password restore, retryable deletion tombstones and exact-byte orphan-upload recovery. No automatic pruning.
