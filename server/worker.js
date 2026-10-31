@@ -1,0 +1,16 @@
+import {spawn} from 'node:child_process';import {mkdir,open} from 'node:fs/promises';import path from 'node:path';import {fileURLToPath} from 'node:url';import {createStore} from './store.js';import {jobs} from './jobs.js';import {createRuntime} from './runtime/index.js';import {credentialVault} from '../cli/credentials.js';import {providerCatalog,providerKeyMap} from './runtime/providers.js';
+const live=pid=>{if(!pid)return false;try{process.kill(pid,0);return true;}catch(e){return e.code==='EPERM';}};
+export async function executeWorker(home,jobId,runtimeOptions={}){
+ const {store}=await createStore(home),ledger=jobs(store),job=await store.record('jobs',jobId);if(!job)throw Error('Job not found');
+ await store.transaction(s=>{const j=s.jobs.find(j=>j.id===jobId);if(live(j.workerPid))throw Error('Worker already running');if(s.requests.some(r=>r.jobId===jobId&&['reserved','sent','unknown'].includes(r.state)))throw Error('Unresolved billing; reconcile before resuming');if(j.status!=='queued')throw Error('Explicitly resume this saved job before starting a worker');j.workerPid=process.pid;j.status='running';j.startedAt=new Date().toISOString();});
+ const vault=credentialVault(home);vault.configureProviders(providerKeyMap(providerCatalog((await store.readSettings()).providers)));let runtime,timer;
+ try{runtime=createRuntime({store,getCredential:id=>vault.get(id),...runtimeOptions,emit:event=>{if(event.type==='approval')queueMicrotask(()=>runtime.approve({id:event.id,approved:false}).catch(()=>{}));runtimeOptions.emit?.(event);}});
+  timer=setInterval(()=>store.record('jobs',jobId).then(j=>{if(j?.status==='cancelled')runtime.cancel({sessionId:job.sessionId});}).catch(()=>{}),500);timer.unref();
+  const result=await runtime.chat({projectId:job.projectId,sessionId:job.sessionId,jobId:job.id,contextPolicy:job.contextPolicy,model:job.model,mode:job.mode||'plan',message:job.startedAt?`Continue saved job from its recorded history. Do not repeat completed work. Goal: ${job.goal}`:job.goal});await ledger.finish(jobId,result.error?'failed':'complete',result.content||result.error);return result;
+ }finally{clearInterval(timer);await runtime?.close();await store.transaction(s=>{const j=s.jobs.find(j=>j.id===jobId);if(j?.workerPid===process.pid)j.workerPid=null;});await store.flush();}
+}
+export async function startWorker(home,jobId){
+ if(!/^[a-f0-9-]{36}$/.test(jobId))throw Error('Invalid job ID');const folder=path.join(home,'jobs',jobId);await mkdir(folder,{recursive:true});const log=await open(path.join(folder,'worker.log'),'a',0o600);
+ try{const child=spawn(process.execPath,[fileURLToPath(new URL('../bin/apex.js',import.meta.url)),'worker','--home',home,'--job',jobId],{detached:true,windowsHide:true,stdio:['ignore',log.fd,log.fd],env:{...process.env,NODE_TLS_REJECT_UNAUTHORIZED:'1'}});child.unref();return {pid:child.pid,jobId,log:path.join(folder,'worker.log')};}finally{await log.close();}
+}
+export async function workerMain(args){let home,jobId;for(let i=0;i<args.length;i++){if(args[i]==='--home')home=args[++i];else if(args[i]==='--job')jobId=args[++i];else throw Error('Unknown worker option');}if(!home||!jobId)throw Error('worker --home PATH --job ID required');const result=await executeWorker(home,jobId);if(result.error)process.exitCode=1;}

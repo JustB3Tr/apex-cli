@@ -1,0 +1,12 @@
+import test from 'node:test';import assert from 'node:assert/strict';import {mkdtemp,rm} from 'node:fs/promises';import path from 'node:path';import os from 'node:os';import {createStore} from '../server/store.js';import {jobs} from '../server/jobs.js';
+import {executeWorker} from '../server/worker.js';
+test('shared budget reservations are atomic, durable and never replay uncertain billing',async()=>{
+ const home=await mkdtemp(path.join(os.tmpdir(),'apex-job-'));try{const {store}=await createStore(home),project=await store.createProject({name:'Fixture',path:path.join(home,'work')}),ledger=jobs(store),job=await ledger.create({projectId:project.id,goal:'fixture',maxUSD:.1});
+  const outcomes=await Promise.allSettled([1,2,3].map(()=>ledger.reserve(job.id,{amount:.06,model:'fixture'})));assert.equal(outcomes.filter(o=>o.status==='fulfilled').length,1);const request=outcomes.find(o=>o.status==='fulfilled').value;await ledger.sent(request.id);await ledger.unknown(request.id,'read interrupted');assert.equal((await ledger.summary(job.id)).heldUSD,.06);await assert.rejects(()=>ledger.resume(job.id),/Unresolved/);await ledger.reconcile(request.id,.02);await ledger.resume(job.id);const next=await ledger.reserve(job.id,{amount:.07,model:'fixture'});await ledger.settle(next.id,null);assert.ok(Math.abs((await ledger.summary(job.id)).committedUSD-.09)<1e-9);assert.equal((await jobs((await createStore(home)).store).summary(job.id)).requests.length,2);
+ }finally{await rm(home,{recursive:true,force:true});}
+});
+test('a durable worker completes a saved local job without granting tool approvals',async()=>{
+ const home=await mkdtemp(path.join(os.tmpdir(),'apex-worker-'));try{const {store}=await createStore(home),project=await store.createProject({name:'Fixture',path:path.join(home,'work')}),session=await store.createSession({projectId:project.id}),ledger=jobs(store),job=await ledger.create({projectId:project.id,sessionId:session.id,goal:'Inspect only',model:'ollama:fixture',mode:'plan',maxUSD:0});
+ const result=await executeWorker(home,job.id,{models:[{id:'ollama:fixture'}],fetch:async()=>Response.json({choices:[{message:{role:'assistant',content:'Local worker finished.'}}]})});assert.equal(result.content,'Local worker finished.');assert.equal((await ledger.summary(job.id)).status,'complete');assert.equal((await store.record('jobs',job.id)).workerPid,null);
+ }finally{await rm(home,{recursive:true,force:true});}
+});

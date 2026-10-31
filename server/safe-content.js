@@ -1,0 +1,5 @@
+import {createHash} from 'node:crypto';
+export const digest=value=>createHash('sha256').update(value).digest('hex');
+export function privatePath(file){return /(^|[\\/])(\.git|\.apex|\.apex-cli|\.secrets|\.obsidian|node_modules|APEX-Vault|Private|Outbox|\.env(?:\.[^\\/]*)?|credentials(?:\.[^\\/]*)?|auth-token|room-secrets.enc.json|hub-owner-token|remote-control.json|accounts.json|.apex-vault.json|id_rsa|id_ed25519)([\\/]|$)/i.test(file)||/(^|[\\/])APEX-Vault[\\/]Private([\\/]|$)/i.test(file);}
+export function scrub(text){let value=String(text);for(const [key,secret] of Object.entries(process.env))if(/KEY|TOKEN|SECRET|PASSWORD/i.test(key)&&secret?.length>=10)value=value.split(secret).join('[REDACTED]');return value.replace(/\b(?:sk-(?:or-v1-|ant-[\w-]*-)?[A-Za-z0-9_-]{24,}|gh[pousr]_[A-Za-z0-9]{24,}|github_pat_[A-Za-z0-9_]{24,}|AIza[A-Za-z0-9_-]{30,})\b/g,'[REDACTED]');}
+export function portableMessage(message){return {id:message.id,role:message.role,content:scrub(typeof message.content==='string'?message.content:JSON.stringify(message.content)),createdAt:message.createdAt,author:message.author||null};}

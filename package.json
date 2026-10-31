@@ -1,0 +1,72 @@
+{
+  "name": "apex-agent-cli",
+  "version": "0.8.0",
+  "description": "APEX CLI: collaborative coding agents, saved context and an Obsidian-compatible local vault",
+  "type": "module",
+  "bin": {
+    "apex": "bin/apex.js"
+  },
+  "engines": {
+    "node": ">=22"
+  },
+  "files": [
+    "bin",
+    "cli",
+    "server",
+    "README.md",
+    "LICENSE",
+    "VALIDATION.md",
+    "NOTICE",
+    "licenses",
+    "obsidian-plugin",
+    "COLLABORATION.md",
+    "marketplace",
+    "remote-ui",
+    "EXTENSIONS.md",
+    "ACCOUNTS.md",
+    "FREE_MODELS.md",
+    "EFFICIENCY.md",
+    "ONBOARDING.md",
+    "CONTRIBUTING.md",
+    "CHANGELOG.md",
+    "PUBLISHING.md"
+  ],
+  "scripts": {
+    "start": "node bin/apex.js",
+    "test": "node --test tests/*.test.js",
+    "verify:collaboration": "node scripts/two-person-workflow.mjs",
+    "verify:terminal": "node scripts/verify-setup-terminal.mjs"
+  },
+  "license": "MIT",
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.25.0",
+    "yaml": "2.9.1",
+    "zod": "^4.1.0"
+  },
+  "devDependencies": {
+    "@napi-rs/canvas": "^1.1.0",
+    "@playwright/mcp": "0.0.83",
+    "@xterm/headless": "^6.0.0",
+    "node-pty": "^1.1.0"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/JustB3Tr/apex-cli.git"
+  },
+  "homepage": "https://github.com/JustB3Tr/apex-cli#readme",
+  "bugs": {
+    "url": "https://github.com/JustB3Tr/apex-cli/issues"
+  },
+  "publishConfig": {
+    "access": "public",
+    "registry": "https://registry.npmjs.org/"
+  },
+  "keywords": [
+    "apex",
+    "cli",
+    "coding-agent",
+    "mcp",
+    "collaboration",
+    "obsidian"
+  ]
+}

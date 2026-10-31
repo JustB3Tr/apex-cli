@@ -1,0 +1,19 @@
+APEX CLI
+
+Terminal presentation in cli/look.js adapted from ANUS (https://github.com/anus-dev/ANUS), Copyright (c) 2025-2026 ANUS, MIT. Modifications: APEX branding, block logo letters, truthful provider tagline, integration with the APEX runtime.
+
+Upstream notice preserved:
+ANUS
+Copyright (c) 2025-2026 ANUS (https://anus.dev)
+
+This program runs on pi (@earendil-works/pi-coding-agent), Copyright Earendil
+Works, MIT License, installed as a dependency: https://github.com/earendil-works/pi
+
+The block logo (lib/look.mjs) and the loading phrases (lib/phrases.json) come
+from ANUS CLI 0.1.0 (this repository, branch legacy-2025), which was licensed
+under the Apache License 2.0:
+  Copyright 2025 Google LLC
+  Modifications Copyright 2025 ANUS Contributors
+  https://www.apache.org/licenses/LICENSE-2.0
+
+See licenses/ANUS-MIT.txt and licenses/Apache-2.0.txt.

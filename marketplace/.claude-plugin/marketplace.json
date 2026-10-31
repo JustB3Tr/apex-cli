@@ -1,0 +1,1 @@
+{"name":"apex-official","owner":{"name":"APEX contributors"},"plugins":[{"name":"apex-dev","description":"Evidence-first planning, code review and debugging workflows.","version":"0.6.0","source":"./plugins/apex-dev"},{"name":"apex-frontend","description":"Frontend implementation and accessibility verification workflows.","version":"0.6.0","source":"./plugins/apex-frontend"}]}

@@ -1,0 +1,14 @@
+import {boundedJSON} from './http-json.js';
+import {digest} from './safe-content.js';
+import {safeEndpoint} from './hub.js';import {deriveAccountKeys,sealBackup,openBackup} from './account-crypto.js';import {randomUUID} from 'node:crypto';import {roomSecrets} from './room-secrets.js';
+export function accountClient(endpoint,{token,syncKey,userId,deviceId=randomUUID(),fetch=globalThis.fetch}={}){endpoint=safeEndpoint(endpoint);async function request(route,body){const response=await fetch(endpoint+route,{method:body?'POST':'GET',headers:{'content-type':'application/json',...(token?{Authorization:'Bearer '+token}:{})},...(body?{body:JSON.stringify(body)}:{}),redirect:'error',signal:AbortSignal.timeout(20000)}),value=await boundedJSON(response,{maxBytes:33554432});if(!response.ok)throw Error(value.error?.message||'Account request failed');return value;}
+ async function encryptedBackup(id){if(!syncKey||!userId)throw Error('Master-password login required');let saved=await request('/api/backups/'+id);if(saved.hash===undefined||saved.userId===undefined){const meta=(await request('/api/backups')).find(b=>b.id===id);if(!meta)throw Error('Backup metadata unavailable');saved={...meta,...saved};}if(saved.id!==id||saved.userId!==userId||digest(JSON.stringify(saved.envelope))!==saved.hash)throw Error('Backup identity/checksum mismatch');openBackup(syncKey,[userId,saved.deviceId,saved.id],saved.envelope);return saved;}
+ return {info:()=>request('/api/info'),
+  async login({email,password,invite,deviceName}){const info=await request('/api/info'),keys=await deriveAccountKeys(password,email,info.serviceId),value=await request(invite?'/api/register':'/api/login',{email,authProof:keys.authProof,...(invite?{invite}:{}),deviceName});token=value.token;syncKey=keys.syncKey;userId=value.user.id;return {endpoint,token,syncKey,userId,email:value.user.email,deviceId,sessionId:value.sessionId,expiresAt:value.expiresAt};},
+  me:()=>request('/api/me'),sessions:()=>request('/api/sessions'),revoke:id=>request('/api/revoke',{id}),logout:()=>request('/api/logout',{}),usage:()=>request('/api/usage'),backups:()=>request('/api/backups'),storage:()=>request('/api/storage'),backupRecord:id=>request('/api/backups/'+id+'/metadata'),deleteBackup:id=>request('/api/backups/delete',{id}),pruneBackups:ids=>request('/api/backups/prune',{ids}),
+  async upload(value,{id=randomUUID()}={}){if(!syncKey||!userId)throw Error('Log in with your master password before syncing');const envelope=sealBackup(syncKey,[userId,deviceId,id],value);return request('/api/backups',{id,deviceId,envelope});},
+  encryptedBackup,
+  async download(id){const saved=await encryptedBackup(id);return openBackup(syncKey,[userId,saved.deviceId,saved.id],saved.envelope);}
+ };
+}
+export function accountSession(home){const secrets=roomSecrets(home);return {save:value=>secrets.set('apex-account',value),get:()=>secrets.get('apex-account'),clear:()=>secrets.remove('apex-account')};}
