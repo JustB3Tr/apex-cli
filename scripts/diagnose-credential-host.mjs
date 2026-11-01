@@ -1,0 +1,10 @@
+import {spawn} from 'node:child_process';
+import path from 'node:path';
+import {protect,runCredentialCommand} from '../cli/credentials.js';
+const file=path.win32.join(process.env.SystemRoot||'C:\\Windows','System32','WindowsPowerShell','v1.0','powershell.exe');
+console.log(JSON.stringify({node:process.version,platform:process.platform,arch:process.arch}));
+async function full(script){return new Promise(resolve=>{let stdout='',stderr='';const child=spawn(file,['-NoProfile','-NonInteractive','-Command',script],{windowsHide:true,stdio:['pipe','pipe','pipe']});const timer=setTimeout(()=>child.kill(),7000);child.stdout.on('data',b=>stdout+=b);child.stderr.on('data',b=>stderr+=b);child.on('close',(code,signal)=>{clearTimeout(timer);resolve({code,signal,stdout,stderr});});child.on('error',e=>{clearTimeout(timer);resolve({error:e.code});});child.stdin.on('error',()=>{});child.stdin.end('fixture-only');});}
+for(const [name,script] of [['boot',"[Console]::Out.Write('BOOT')"],['stdin',"[Console]::Out.Write('BOOT|');$v=[Console]::In.ReadToEnd();[Console]::Out.Write('READ|')"],['dpapi',"$ErrorActionPreference='Stop';[Console]::Out.Write('BOOT|');Add-Type -AssemblyName System.Security;[Console]::Out.Write('ASSEMBLY|');$v=[Console]::In.ReadToEnd();[Console]::Out.Write('READ|');$b=[Text.Encoding]::UTF8.GetBytes($v);$r=[Security.Cryptography.ProtectedData]::Protect($b,$null,[Security.Cryptography.DataProtectionScope]::CurrentUser);[Console]::Out.Write('PROTECTED|')"]]){
+ for(const minimal of [false,true]){const at=Date.now();try{const result=minimal?await runCredentialCommand(file,['-NoProfile','-NonInteractive','-Command',script],{input:'fixture-only',timeoutMs:7000}):await full(script);console.log(JSON.stringify({name,minimal,ms:Date.now()-at,...result}));}catch(e){console.log(JSON.stringify({name,minimal,ms:Date.now()-at,error:e.message}));}}
+}
+try{const value=await protect('fixture-only',false,{run:(f,a,o)=>runCredentialCommand(f,a,{...o,timeoutMs:7000})});console.log(JSON.stringify({actualAdapter:'passed',ciphertextPresent:Boolean(value)}));}catch(e){console.log(JSON.stringify({actualAdapter:e.message}));process.exitCode=1;}
