@@ -15,7 +15,7 @@ jobs:
           cache: npm
       - run: npm ci
       - run: npx --no-install playwright install chromium
-      - run: npm test
+      - run: npm run test:ci
       - run: node server/runtime/selftest.mjs
   publish:
     needs: verify

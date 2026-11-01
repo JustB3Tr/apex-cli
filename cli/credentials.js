@@ -7,7 +7,7 @@ import {BUILTIN_PROVIDERS,providerKeyMap} from '../server/runtime/providers.js';
 
 export const KEY_PROVIDERS=providerKeyMap(BUILTIN_PROVIDERS);
 const PROTECTION={win32:'windows-dpapi-current-user',darwin:'macos-keychain',linux:'linux-secret-service'};
-const MAX_OUTPUT=32768,TIMEOUT_MS=15000;
+const MAX_OUTPUT=32768,TIMEOUT_MS=30000;
 const keyValid=value=>typeof value==='string'&&value.length>=10&&value.length<=8192&&!/[\s\x00-\x1f\x7f]/.test(value)&&Buffer.byteLength(value)<=8192;
 const unavailable=()=>Error('Secure credential storage is unavailable. Use the provider environment variable; no plaintext fallback.');
 const failed=action=>Error(`Secure credential ${action} failed or was denied. Check the OS keychain/session; no plaintext fallback.`);
@@ -91,7 +91,10 @@ export function credentialVault(home,{platform=process.platform,run=runCredentia
   configureProviders(values){providers={...KEY_PROVIDERS,...values};},
   async set(name,key){
    provider(name);if(!keyValid(key))throw Error('API key must be a single token, 10-8192 UTF-8 bytes');if(!protection)throw unavailable();
-   await doc.mutate(async data=>{if(platform==='win32'){const encrypted=await protect(key,false,{platform,run,available});data.keys[name]={encrypted,...(data.protection!==protection?{protection}:{}),updatedAt:new Date().toISOString()};}
+   // DPAPI does not depend on existing vault contents. Keep native helper startup
+   // outside the document lock so cold Windows hosts cannot block unrelated keys.
+   const encrypted=platform==='win32'?await protect(key,false,{platform,run,available}):null;
+   await doc.mutate(async data=>{if(platform==='win32'){data.keys[name]={encrypted,...(data.protection!==protection?{protection}:{}),updatedAt:new Date().toISOString()};}
     else{await keychain('set',name,key);data.keys[name]={protection,updatedAt:new Date().toISOString()};}});
   },
   async get(name){provider(name);const data=await doc.read(),record=data.keys[name];if(!record)return null;assertBackend(data,record);const value=platform==='win32'?await protect(record.encrypted,true,{platform,run,available}):await keychain('get',name);if(value!==null&&!keyValid(value))throw failed('read (invalid stored token)');return value;},

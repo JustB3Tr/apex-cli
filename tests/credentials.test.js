@@ -6,6 +6,16 @@ import os from 'node:os';
 import {credentialVault,protect,runCredentialCommand} from '../cli/credentials.js';
 
 async function scratch(run){const home=await mkdtemp(path.join(os.tmpdir(),'apex-credential-fixture-'));try{await run(home);}finally{await rm(home,{recursive:true,force:true});}}
+
+test('a slow DPAPI helper does not hold the vault lock or block another provider save',()=>scratch(async home=>{
+ const backend=fixture('win32'),original=backend.options.run;let release,started;
+ const gate=new Promise(resolve=>release=resolve),began=new Promise(resolve=>started=resolve),slowKey='slow-fixture-token-not-real';
+ const options={...backend.options,run:async(file,args,options)=>{if(options.input===slowKey){started();await gate;}return original(file,args,options);}};
+ const slow=credentialVault(home,options).set('openrouter',slowKey);await began;
+ try{await credentialVault(home,options).set('openai','fast-fixture-token-not-real');const data=JSON.parse(await readFile(path.join(home,'credentials.enc.json'),'utf8'));assert.ok(data.keys.openai);assert.equal(data.keys.openrouter,undefined);}
+ finally{release();await slow;}
+ assert.equal(await credentialVault(home,options).get('openrouter'),slowKey);
+}));
 // Matches the documented security -i quotation/escape states, without a shell.
 function securityWords(line){const words=[];let value='',quote=null,escaped=false,active=false;for(const c of line){if(escaped){value+=c;escaped=false;active=true;continue;}if(c==='\\'){escaped=true;active=true;continue;}if(quote){if(c===quote){quote=null;words.push(value);value='';active=false;}else value+=c;continue;}if(c==='"'||c==="'"){quote=c;active=true;}else if(/\s/.test(c)){if(active){words.push(value);value='';active=false;}}else{value+=c;active=true;}}assert.equal(quote,null);assert.equal(escaped,false);if(active)words.push(value);return words;}
 function fixture(platform){
