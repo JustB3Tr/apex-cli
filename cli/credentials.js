@@ -50,7 +50,9 @@ async function runPrivate(run,file,args,options){try{const result=await run(file
 export async function protect(value,decrypt=false,{platform=process.platform,run=runCredentialCommand,available=trustedExecutable}={}){
  if(platform!=='win32')throw Error('Encrypted account/room documents currently require Windows DPAPI. Provider API keys also support macOS Keychain and Linux Secret Service.');
  const file=await utility(platform,available);if(!file)throw unavailable();
- const script=`$ErrorActionPreference='Stop'; Add-Type -AssemblyName System.Security; $v=[Console]::In.ReadToEnd(); $b=${decrypt?'[Convert]::FromBase64String($v)':'[Text.Encoding]::UTF8.GetBytes($v)'}; $r=[Security.Cryptography.ProtectedData]::${decrypt?'Unprotect':'Protect'}($b,$null,[Security.Cryptography.DataProtectionScope]::CurrentUser); [Console]::Out.Write(${decrypt?'[Text.Encoding]::UTF8.GetString($r)':'[Convert]::ToBase64String($r)'})`;
+ // Resolve the exact framework assembly directly. Add-Type triggers PowerShell
+ // module discovery, which can hang on hosted Windows under a sanitized env.
+ const script=`$ErrorActionPreference='Stop'; $null=[Reflection.Assembly]::Load('System.Security, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b03f5f7f11d50a3a'); $v=[Console]::In.ReadToEnd(); $b=${decrypt?'[Convert]::FromBase64String($v)':'[Text.Encoding]::UTF8.GetBytes($v)'}; $r=[Security.Cryptography.ProtectedData]::${decrypt?'Unprotect':'Protect'}($b,$null,[Security.Cryptography.DataProtectionScope]::CurrentUser); [Console]::Out.Write(${decrypt?'[Text.Encoding]::UTF8.GetString($r)':'[Convert]::ToBase64String($r)'})`;
  const result=await runPrivate(run,file,['-NoProfile','-NonInteractive','-Command',script],{input:value,platform});
  if(result.code!==0||!result.stdout)throw failed(decrypt?'decryption':'encryption');return result.stdout;
 }
