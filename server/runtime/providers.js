@@ -1,4 +1,5 @@
 import {randomUUID} from 'node:crypto';
+import {completionDiagnostics,responseFailure} from './response.js';
 // API keys are resolved per provider. No automatic credential sharing/fallback.
 export const BUILTIN_PROVIDERS={
  apex:{name:'APEX sponsored allowance',baseURL:null,keyEnv:'APEX_ACCESS_TOKEN',completionLimit:'max_completion_tokens',sponsored:true},
@@ -68,36 +69,40 @@ export function resolveProvider(provider,model){
  if(validateBaseURL(model.api[family].base_url)!==expected)throw Error('OpenCode catalog endpoint does not match its configured provider origin/path');
  return {...provider,protocol,baseURL:expected,bearerAuth:true};
 }
-export function inferenceURL(provider,model){return provider.baseURL+(provider.protocol==='anthropic'?'/messages':provider.protocol==='responses'?'/responses':provider.protocol==='google'?'/models/'+encodeURIComponent(model)+':generateContent':'/chat/completions');}
+export function inferenceURL(provider,model,{stream=false}={}){
+ if(stream&&provider.protocol==='google'&&provider.googleSSE!==true)throw Error('Google SSE route requires an explicitly configured googleSSE adapter');
+ return provider.baseURL+(provider.protocol==='anthropic'?'/messages':provider.protocol==='responses'?'/responses':provider.protocol==='google'?'/models/'+encodeURIComponent(model)+(stream?':streamGenerateContent?alt=sse':':generateContent'):'/chat/completions');
+}
 export function zenPrices(model){
  const text=model.cost?.text;if(!text)return {inputPrice:null,outputPrice:null};
  const rates=side=>[side?.price,side?.cache?.write,...(side?.overrides||[]).flatMap(o=>[o.price,o.cache?.write])].filter(v=>typeof v==='number'&&Number.isFinite(v)&&v>=0);
  const input=rates(text.input),output=rates(text.output);
  return {inputPrice:input.length?Math.max(...input)/1e6:null,outputPrice:output.length?Math.max(...output)/1e6:null,priceSource:'OpenCode catalog, maximum listed token tiers'};
 }
-export function requestPayload(provider,{model,messages,tools,maxTokens=4096,replayKey}){
+export function requestPayload(provider,{model,messages,tools,maxTokens=4096,replayKey,stream=false}){
+ if(stream&&provider.protocol==='google'&&provider.googleSSE!==true)throw Error('Google SSE route requires an explicitly configured googleSSE adapter');
  if(provider.protocol==='responses'){
   const input=[];
   for(const m of messages.filter(m=>m.role!=='system')){
    if(m.role==='tool'){input.push({type:'function_call_output',call_id:m.tool_call_id,output:m.content||''});continue;}
-   if(m.providerState?.key===replayKey&&m.providerState.protocol==='responses'){input.push(...m.providerState.items);continue;}
+   if(m.providerState&&m.providerState.key===replayKey&&m.providerState.protocol==='responses'){input.push(...m.providerState.items);continue;}
    if(m.content)input.push({role:m.role,content:m.content});
    for(const c of m.tool_calls||[])input.push({type:'function_call',call_id:c.id,name:c.function.name,arguments:c.function.arguments});
   }
-  return {model,instructions:messages.filter(m=>m.role==='system').map(m=>m.content).join('\n\n'),input,tools:tools.map(t=>({type:'function',...t.function,strict:false})),max_output_tokens:maxTokens,store:false,stream:false};
+  return {model,instructions:messages.filter(m=>m.role==='system').map(m=>m.content).join('\n\n'),input,tools:tools.map(t=>({type:'function',...t.function,strict:false})),max_output_tokens:maxTokens,store:false,stream:stream===true};
  }
  if(provider.protocol==='google'){
   const contents=[],calls=new Map(messages.flatMap(m=>(m.tool_calls||[]).map(c=>[c.id,c])));
   for(const m of messages.filter(m=>m.role!=='system')){
    const role=m.role==='assistant'?'model':'user';let parts=[];
    if(m.role==='tool'){const c=calls.get(m.tool_call_id);parts=[{functionResponse:{name:c?.function.name||m.tool_call_id,...(c?.googleCallId?{id:c.googleCallId}:{}),response:{result:m.content||''}}}];}
-   else if(m.providerState?.key===replayKey&&m.providerState.protocol==='google')parts=m.providerState.parts;
+   else if(m.providerState&&m.providerState.key===replayKey&&m.providerState.protocol==='google')parts=m.providerState.parts;
    else{if(m.content)parts.push({text:m.content});for(const c of m.tool_calls||[])parts.push({functionCall:{name:c.function.name,...(c.googleCallId?{id:c.googleCallId}:{}),args:JSON.parse(c.function.arguments||'{}')}});}
    if(!parts.length)continue;if(contents.at(-1)?.role===role)contents.at(-1).parts.push(...parts);else contents.push({role,parts:[...parts]});
   }
   return {systemInstruction:{parts:[{text:messages.filter(m=>m.role==='system').map(m=>m.content).join('\n\n')}]},contents,tools:[{functionDeclarations:tools.map(t=>({name:t.function.name,description:t.function.description,parametersJsonSchema:t.function.parameters}))}],generationConfig:{maxOutputTokens:maxTokens}};
  }
- if(provider.protocol!=='anthropic')return {model,messages:messages.map(({providerState,...m})=>({...m,...(m.tool_calls?{tool_calls:m.tool_calls.map(({googleCallId,...c})=>c)}:{})})),tools,[provider.completionLimit||'max_tokens']:maxTokens,stream:false,...(provider.sponsored?{reasoning_effort:'none'}:{})};
+ if(provider.protocol!=='anthropic')return {model,messages:messages.map(({providerState,...m})=>({...m,...(m.tool_calls?{tool_calls:m.tool_calls.map(({googleCallId,...c})=>c)}:{})})),tools,[provider.completionLimit||'max_tokens']:maxTokens,stream:stream===true,...(stream?{stream_options:{include_usage:true}}:{}),...(provider.sponsored?{reasoning_effort:'none'}:{})};
  const converted=[];
  for(const message of messages.filter(m=>m.role!=='system')){
   let role=message.role,content=[];
@@ -109,23 +114,24 @@ export function requestPayload(provider,{model,messages,tools,maxTokens=4096,rep
   if(!content.length)continue;
   if(converted.at(-1)?.role===role)converted.at(-1).content.push(...content);else converted.push({role,content});
  }
- return {model,system:messages.filter(m=>m.role==='system').map(m=>m.content).join('\n\n'),messages:converted,tools:tools.map(t=>({name:t.function.name,description:t.function.description,input_schema:t.function.parameters})),max_tokens:maxTokens,stream:false};
+ return {model,system:messages.filter(m=>m.role==='system').map(m=>m.content).join('\n\n'),messages:converted,tools:tools.map(t=>({name:t.function.name,description:t.function.description,input_schema:t.function.parameters})),max_tokens:maxTokens,stream:stream===true};
 }
 export function responsePayload(provider,data){
+ const completion=completionDiagnostics(provider,data);
  if(provider.protocol==='responses'){
-  if(data.error||!Array.isArray(data.output)||data.status&&data.status!=='completed')throw Error('Responses API did not complete successfully; no automatic retry');
+  if(data.error||!Array.isArray(data.output)||data.status&&data.status!=='completed')throw responseFailure(completion.status==='complete'?{status:'incomplete',reason:'invalid_response'}:completion,{usage:data.usage});
   const items=data.output.filter(p=>['reasoning','message','function_call'].includes(p.type)),calls=items.filter(p=>p.type==='function_call').map(p=>({id:p.call_id,type:'function',function:{name:p.name,arguments:p.arguments}}));
-  return {choices:[{message:{role:'assistant',content:items.filter(p=>p.type==='message').flatMap(p=>p.content||[]).filter(p=>p.type==='output_text').map(p=>p.text).join('\n'),...(calls.length?{tool_calls:calls}:{}),providerState:{protocol:'responses',items}}}],usage:{...data.usage,prompt_tokens:data.usage?.input_tokens??null,completion_tokens:data.usage?.output_tokens??null}};
+  return {completion,choices:[{finish_reason:completion.finishReason,message:{role:'assistant',content:items.filter(p=>p.type==='message').flatMap(p=>p.content||[]).filter(p=>p.type==='output_text').map(p=>p.text).join('\n'),...(calls.length?{tool_calls:calls}:{}),providerState:{protocol:'responses',items}}}],usage:{...data.usage,prompt_tokens:data.usage?.input_tokens??null,completion_tokens:data.usage?.output_tokens??null}};
  }
  if(provider.protocol==='google'){
-  const parts=data.candidates?.[0]?.content?.parts;if(!Array.isArray(parts))throw Error('Gemini returned no message');
+  const parts=data.candidates?.[0]?.content?.parts;if(!Array.isArray(parts)){if(completion.status!=='complete')throw responseFailure(completion,{usage:data.usageMetadata});throw Error('Gemini returned no message');}
   const calls=parts.filter(p=>p.functionCall).map(p=>({id:p.functionCall.id||randomUUID(),googleCallId:p.functionCall.id||null,type:'function',function:{name:p.functionCall.name,arguments:JSON.stringify(p.functionCall.args||{})}}));
   const usage=data.usageMetadata||{};
-  return {choices:[{message:{role:'assistant',content:parts.filter(p=>p.text&&!p.thought).map(p=>p.text).join('\n'),...(calls.length?{tool_calls:calls}:{}),providerState:{protocol:'google',parts}}}],usage:{...usage,prompt_tokens:usage.promptTokenCount??null,completion_tokens:typeof usage.candidatesTokenCount==='number'?usage.candidatesTokenCount+(usage.thoughtsTokenCount||0):null}};
+  return {completion,choices:[{finish_reason:completion.finishReason,message:{role:'assistant',content:parts.filter(p=>p.text&&!p.thought).map(p=>p.text).join('\n'),...(calls.length?{tool_calls:calls}:{}),providerState:{protocol:'google',parts}}}],usage:{...usage,prompt_tokens:usage.promptTokenCount??null,completion_tokens:typeof usage.candidatesTokenCount==='number'?usage.candidatesTokenCount+(usage.thoughtsTokenCount||0):null}};
  }
- if(provider.protocol!=='anthropic')return data;
+ if(provider.protocol!=='anthropic')return {...data,completion};
  if(data.type!=='message'||!Array.isArray(data.content))throw Error('Anthropic returned no message');
  const calls=data.content.filter(p=>p.type==='tool_use').map(p=>({id:p.id,type:'function',function:{name:p.name,arguments:JSON.stringify(p.input)}}));
  const usage=data.usage||{},input=[usage.input_tokens,usage.cache_read_input_tokens,usage.cache_creation_input_tokens];
- return {choices:[{message:{role:'assistant',content:data.content.filter(p=>p.type==='text').map(p=>p.text).join('\n'),...(calls.length?{tool_calls:calls}:{})}}],usage:{...usage,prompt_tokens:typeof usage.input_tokens==='number'?input.reduce((n,v)=>n+(v||0),0):null,completion_tokens:usage.output_tokens??null}};
+ return {completion,choices:[{finish_reason:completion.finishReason,message:{role:'assistant',content:data.content.filter(p=>p.type==='text').map(p=>p.text).join('\n'),...(calls.length?{tool_calls:calls}:{})}}],usage:{...usage,prompt_tokens:typeof usage.input_tokens==='number'?input.reduce((n,v)=>n+(v||0),0):null,completion_tokens:usage.output_tokens??null}};
 }

@@ -1,5 +1,11 @@
 # Agent libraries, context efficiency and cache visibility
 
+## APEX 0.13 context recovery
+
+`/recover` chooses the next turn's context strategy without making a model call. Actual history trimming or an elapsed previously observed cache-window estimate opens an interactive choice before POST: reread saved history if it fits, recover selected vault notes and their local links, keep recent context, or cancel. Cache expiry is not memory loss. Unknown cache policy remains unknown, and no keepalive is sent.
+
+Recovery tools are read-only and private/shared scoped. The instructions tell agents to cite vault notes and graph records, inspect relevant links, verify current files and ask when missing information matters. Selective recovery can miss facts; loading every note is neither required nor assumed cheaper. Full original transcripts remain saved, and bounded private checkpoints retain original message references without claiming a semantic summary or execution proof. Existing turn/job ceilings still apply.
+
 Research checked October 30, 2026. These are integration candidates, not installed dependencies or demonstrated APEX quality improvements.
 
 | Project | Useful part for APEX | Tradeoff |

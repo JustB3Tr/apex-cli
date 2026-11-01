@@ -1,4 +1,29 @@
 import {modelPrice} from '../server/runtime/providers.js';
+import path from 'node:path';
+import {localVault} from '../server/vault.js';
+
+export async function firstRunSetup(c,{force=false}={}){
+ const settings=await c.store.readSettings();if(settings.onboardingVersion>=1&&!force)return {skipped:true};
+ c.print('Welcome to APEX. One-time setup: optional local vault, your providers, and permissions. No model requests or paid usage without a separate confirmation. /setup opens this again.');
+ if(await c.confirm('Create or connect an Obsidian-compatible local vault?')){
+  const project=c.project(),folder=(await c.question('Vault folder [APEX-Vault inside this project]:')).trim();
+  const vaultPath=path.resolve(project.path,folder||'APEX-Vault');await localVault(vaultPath).init();
+  await c.store.updateProject(project.id,{vaultPath});await c.store.writeSettings({vaultPreference:'enabled'});
+  await c.celebrate?.({title:'Vault ready',detail:vaultPath});
+ }else{await c.store.writeSettings({vaultPreference:'disabled'});c.print('Vault creation skipped. Existing vaults are preserved. /vault init can enable one later.');}
+ let addProvider=await c.confirm('Add or configure a provider and default model now?');
+ while(addProvider){
+  await guidedSetup(c);
+  addProvider=await c.confirm('Configure another provider?');
+ }
+ c.print('Permissions: read-only blocks model execution/edits; ask prompts for actions; auto approves bounded project source/text writes and exact location/time commands, and asks for other execution, external calls and protected files. Shells are not sandboxed.');
+ let permissions;
+ do{permissions=(await c.question('Permissions [read-only / ask / auto], default read-only:')).trim().toLowerCase()||'read-only';if(!['read-only','ask','auto'].includes(permissions))c.print('Choose read-only, ask or auto.');}while(!['read-only','ask','auto'].includes(permissions));
+ await c.setPermissions(permissions);
+ await c.store.writeSettings({onboardingVersion:1,onboardingCompletedAt:new Date().toISOString()});
+ c.print('Setup complete. Type / for commands, !command for local shell mode, Ctrl+P for permissions. /setup runs setup again.');
+ return {completed:true,permissions};
+}
 
 export async function guidedSetup(c){
  c.print('APEX setup\nProject: '+c.project().path+'\nChoose your own provider or an already-running local server. Setup installs no model and sends no inference unless you explicitly request the final check.\nPlan permits project reads. Build actions still require approval; approved shell/MCP programs are not an OS sandbox.');

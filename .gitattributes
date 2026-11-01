@@ -1,0 +1,3 @@
+bin/*.js text eol=lf
+obsidian-plugin/graph-core.cjs text eol=lf
+obsidian-plugin/main.js text eol=lf

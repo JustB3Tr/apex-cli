@@ -4,7 +4,7 @@ import {roomSecrets} from '../room-secrets.js';
 import {scrub} from '../safe-content.js';
 import {readFile,writeFile,mkdir,rename} from 'node:fs/promises';
 import path from 'node:path';
-import {randomUUID} from 'node:crypto';
+import {randomUUID,createHash} from 'node:crypto';
 export function createMcpManager(home) {
  const file=path.join(home,'mcp.json'),clients=new Map(),secretValues=new Set();
  const clean=value=>JSON.parse(JSON.stringify(value,(_key,v)=>{if(typeof v!=='string')return v;let text=scrub(v);for(const secret of secretValues)text=text.split(secret).join('[REDACTED]');return text;}));
@@ -23,7 +23,7 @@ export function createMcpManager(home) {
    await save(rows=>[...rows,c]);return c;
   },
   async setEnabled(id,enabled){if(!enabled){await clients.get(id)?.client.close();clients.delete(id);}await save(rows=>rows.map(c=>c.id===id?{...c,enabled:enabled===true}:c));return {id,enabled:enabled===true};},
-  async setAuth(id,values){const c=(await configs()).find(c=>c.id===id);if(!c)throw Error('Unknown MCP server');const names=[...(c.envNames||[]),...(c.authEnv?[c.authEnv]:[])];if(Object.entries(values).some(([k,v])=>!names.includes(k)||typeof v!=='string'||v.length>8192))throw Error('Use declared environment names only');await secrets.set('mcp:'+id,{...(await secrets.get('mcp:'+id)||{}),...values});return {id,savedNames:Object.keys(values)};},
+  async setAuth(id,values){const c=(await configs()).find(c=>c.id===id);if(!c)throw Error('Unknown MCP server');const names=[...(c.envNames||[]),...(c.authEnv?[c.authEnv]:[])];if(Object.entries(values).some(([k,v])=>!names.includes(k)||typeof v!=='string'||v.length>8192))throw Error('Use declared environment names only');await secrets.set('mcp:'+id,{...(await secrets.get('mcp:'+id)||{}),...values});await clients.get(id)?.client.close();clients.delete(id);await save(rows=>rows.map(row=>row.id===id?{...row,authRevision:randomUUID()}:row));return {id,savedNames:Object.keys(values)};},
   async remove(id){await clients.get(id)?.client.close();clients.delete(id);await save(rows=>rows.filter(c=>c.id!==id));return {removed:id};},
   async connect(id){
    if(clients.has(id))return clients.get(id);
@@ -39,16 +39,17 @@ export function createMcpManager(home) {
     const headers={};if(c.authEnv){const key=process.env[c.authEnv]||stored[c.authEnv];if(!key)throw Error('Configure '+c.authEnv+' with /mcp auth '+id);headers.Authorization='Bearer '+key;}
     transport=new StreamableHTTPClientTransport(new URL(c.url),{requestInit:{headers}});
    }
-   try {await client.connect(transport);transport.stderr?.on('data',()=>{});const result=await client.listTools();const item={client,config:c,tools:clean(result.tools||[])};clients.set(id,item);return item;}
+   try {await client.connect(transport);transport.stderr?.on('data',()=>{});const result=await client.listTools();const identityHash=createHash('sha256').update(JSON.stringify({config:c,credentialBindings:[...(c.envNames||[]),...(c.authEnv?[c.authEnv]:[])].map(n=>[n,createHash('sha256').update(process.env[n]||stored[n]||'').digest('hex')])})).digest('hex');const item={client,config:c,identityHash,tools:clean(result.tools||[])};clients.set(id,item);return item;}
    catch(e){await client.close().catch(()=>{});throw Error('MCP connection failed: '+clean(String(e.message||e.name)).slice(0,400));}
   },
-  tools(projectId){return [...clients.values()].filter(item=>!projectId||!item.config.projectId||item.config.projectId===projectId).flatMap(item=>item.tools.map(t=>({serverId:item.config.id,serverName:item.config.name,...t})));},
+  tools(projectId){return [...clients.values()].filter(item=>!projectId||!item.config.projectId||item.config.projectId===projectId).flatMap(item=>item.tools.map(t=>({...t,serverId:item.config.id,serverName:item.config.name,identityHash:item.identityHash})));},
+  async refreshTools(id){const item=clients.get(id);if(!item)throw Error('Connect MCP first');const result=await item.client.listTools(undefined,{timeout:5000});item.tools=clean(result.tools||[]);return item.tools;},
   async call(id,name,args){const item=clients.get(id);if(!item)throw Error('Connect MCP server first');return safeCall(()=>item.client.callTool({name,arguments:args},undefined,{timeout:30000}));},
   async resources(id){const item=clients.get(id);if(!item)throw Error('Connect MCP first');return safeCall(()=>item.client.listResources());},
   async readResource(id,uri){const item=clients.get(id);if(!item)throw Error('Connect MCP first');return safeCall(()=>item.client.readResource({uri}));},
   async prompts(id){const item=clients.get(id);if(!item)throw Error('Connect MCP first');return safeCall(()=>item.client.listPrompts());},
   async getPrompt(id,name,args={}){const item=clients.get(id);if(!item)throw Error('Connect MCP first');return safeCall(()=>item.client.getPrompt({name,arguments:args}));},
-  async sync(){const rows=await configs();for(const [id,item] of clients)if(!rows.some(c=>c.id===id&&c.enabled!==false)){await item.client.close();clients.delete(id);}},
+  async sync(){const rows=await configs();for(const [id,item] of clients)if(!rows.some(c=>c.id===id&&c.enabled!==false&&JSON.stringify(c)===JSON.stringify(item.config))){await item.client.close();clients.delete(id);}},
   async close(){await Promise.allSettled([...clients.values()].map(x=>x.client.close()));clients.clear();}
  };
 }

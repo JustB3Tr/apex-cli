@@ -117,3 +117,7 @@ Model-proposed teams require approval and a clean committed Git checkout. Worker
 Automated fixtures cover three independent local profiles, encrypted HTTP transport, three actual Git checkouts, conflicts, branch isolation, pool authorization, private context, Windows DPAPI, a real local MCP process, detached workers, terminal commands and Obsidian API behavior. The integrated demo uses fixture inference with zero paid requests. These checks do not prove real provider account compatibility, a public internet deployment, a second physical PC or actual Obsidian desktop loading. Those are the next deployment checks.
 
 The package is locally installable as `apex-agent-cli`, with command `apex`. Public npm publication still requires the publisher's npm authentication. No public package, cloud host, invite, account purchase or provider spending is created by development tests.
+
+## Shared group chat (0.16.0)
+
+The live human-chat and pooled-agent workflow is documented in [GROUP_CHAT.md](GROUP_CHAT.md). `/group` opens the shared timeline; `/tabs` keeps personal agents separate; `/group pool` opts in a finite local-key allowance, with optional scoped Build concurrency. The older `/pool` task-offer commands remain explicit, read-only workers.

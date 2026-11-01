@@ -16,7 +16,7 @@ test('Plan mode rejects adversarial writes, shell, delegation, memory and MCP be
   const {store}=await createStore(path.join(home,'state')),project=await store.createProject({name:'Plan fixture',path:path.join(home,'project')}),session=await store.createSession({projectId:project.id});let calls=0;const events=[];
   const tools=['write_file','run_shell','delegate_team','memory_save','mcp_connect','mcp_unknown','peer_message'];
   const runtime=createRuntime({store,models:[{id:'ollama:fixture'}],emit:e=>events.push(e),fetch:async(url,options)=>{
-   const request=JSON.parse(options.body);assert.deepEqual(request.tools.map(t=>t.function.name).sort(),['list_files','mcp_servers','read_file','team_status']);assert.match(request.messages[0].content,/PLAN MODE/);
+   const request=JSON.parse(options.body);assert.deepEqual(request.tools.map(t=>t.function.name).sort(),['ask_user','code_symbols','find_files','list_files','mcp_servers','project_conventions','project_instructions','project_map_query','read_file','read_range','search_text','team_status','vault_read','vault_search']);assert.match(request.messages[0].content,/PLAN MODE/);
    const message=calls++===0?{role:'assistant',content:'Trying blocked actions',tool_calls:tools.map((name,i)=>({id:'t'+i,type:'function',function:{name,arguments:JSON.stringify({path:'bad.txt',content:'bad',command:'exit 1',reason:'test',text:'bad',id:'bad',goal:'bad',agents:[]})}}))}:{role:'assistant',content:'Read-only plan.'};
    if(calls===2)assert.equal(request.messages.filter(m=>m.role==='tool'&&m.content.includes('Plan mode blocks')).length,7);
    return new Response(JSON.stringify({choices:[{message}]}));

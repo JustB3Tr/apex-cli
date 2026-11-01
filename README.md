@@ -1,160 +1,222 @@
+<div align="center">
+
 # APEX CLI
 
-An open-source collaborative coding agent for your terminal. Work with other developers and their agents, keep project context across chats, and maintain a local Markdown vault that opens in Obsidian. Each developer brings their own model access, including supported free tiers or local models.
+### Your team, your agents, your project memory. In the terminal.
 
-Run `apex` inside a project. No browser or HTTP service starts by default. Encrypted collaboration rooms, optional account backups, plugin/MCP catalogs and remote control are explicitly configured features. MIT licensed; no central paid API key is bundled.
+A terminal-native coding workspace built around **collaboration**, **saved context** and an **Obsidian-compatible vault**. Bring your own API provider or local model, work in personal and shared chats, and keep decisions connected to the code and evidence behind them.
 
-## Install
+**Local version 0.17.0** · **MIT licensed** · **Node.js 22+** (24 recommended) · **Private development repository**
 
-Source: [JustB3Tr/apex-cli](https://github.com/JustB3Tr/apex-cli), branch `master`. Registry release is pending npm authentication. You can install the current GitHub source now:
+[Get started](#get-started) · [Why APEX](#why-apex) · [Collaboration](#collaborate-with-people-and-their-agents) · [Commands](#command-reference) · [Development](#development-and-verification)
 
-```powershell
-npm install --global github:JustB3Tr/apex-cli#master
-apex
+![APEX terminal with a live response preview, an editable composer and project status](docs/images/terminal-streaming.png)
+
+</div>
+
+> Screenshots are real captures from isolated terminal walkthroughs using local fixture responses. They demonstrate the interface and workflow, not a benchmark or a claim about model quality. The vault image was captured in 0.16; the other views are from 0.17.
+
+## Why APEX
+
+Most coding agents start with one person talking to one model. APEX puts the **shared project** alongside that personal agent: people can talk to each other, call an agent with `@apex`, keep private work separate, and deliberately move useful context between them.
+
+| APEX approach | What it changes for you |
+| --- | --- |
+| Shared human chat plus personal agent tabs | Discuss work with your team without turning every message into a paid model request. Bring in an opted-in agent when you need one. |
+| Owner-local model access and funding limits | Each person keeps their own keys and caps. Pool the capacity of participating agents without handing your API token to another person. |
+| Project memory you can inspect | Keep notes, decisions and links in ordinary Markdown. Search the vault or inspect its graph instead of relying on an invisible conversation summary. |
+| Durable task briefs and human review | Objectives, constraints and pending questions survive history trimming. Work can park for an answer without continuing inference. |
+| Evidence, not just a confident final message | Inspect executed commands, edits, source freshness, reservations and verification limits. A successful command is not treated as proof of every requirement. |
+| Provider flexibility with explicit choices | Use configured cloud APIs or a separately running local server. APEX does not silently replace your selected model. |
+| A native terminal workspace | Guided menus, slash completion, Plan/Build, reasoning-effort controls, saved chats, forks and optional plain-text interaction. |
+
+APEX is its own coding-agent harness, with optional handoffs to installed official Codex and Claude CLIs. Its terminal presentation includes credited adaptations from ANUS; the runtime and collaboration workflows are APEX-specific. It does not promise to outperform Claude Code, Codex or OpenCode. Its differentiator is how collaboration, inspectable local knowledge and reviewable execution fit together. See [EVOLUTION.md](EVOLUTION.md) for the implementation map and the limits behind those claims.
+
+## Get started
+
+### 1. Install this private source snapshot
+
+You need Node.js 22 or newer, npm and Git. Node 24 is the development recommendation. The GitHub CLI makes authenticated cloning straightforward:
+
+```sh
+gh auth login
+gh repo clone JustB3Tr/apex-cli-private
+cd apex-cli-private
+npm ci
+npm install --global . --ignore-scripts
+apex --version
 ```
 
-For a downloaded local tarball:
+The repository is private: your GitHub account needs access. If you use Git instead of `gh`, use your configured Git credential manager or SSH authentication. Do not paste a token into a clone URL.
 
-```powershell
-npm install -g ./apex-agent-cli-0.8.0.tgz
-apex C:\projects\my-app
+This README does **not** assume a current npm registry release. The package name is `apex-agent-cli`; the installed command is `apex`. A future registry release is a separate step described in [PUBLISHING.md](PUBLISHING.md).
+
+### 2. Open a project
+
+```sh
+apex /path/to/your-project
 ```
 
-Once published, installation will be `npm install -g apex-agent-cli`, then `apex`. The existing npm package `apex` belongs to someone else; it is not this CLI. Registry publication still requires npm login. See [PUBLISHING.md](PUBLISHING.md) for first release and token-free GitHub Actions setup.
+Or run `apex` from inside an existing project. On Windows, a path such as `apex C:\projects\my-app` works too.
 
-## Guided first setup
+First launch opens a guided setup. Choose an existing vault, create one, or skip it; add provider access; select a model; review prices and spending limits; and choose permissions. Setup does not buy credits, start a model server or automatically run a paid prompt. Reopen it with `/setup`.
 
-Start `apex PATH`, then `/setup`. Choose your own provider or local server, an exact model, prices when needed, and a per-turn ceiling. The guide saves Plan mode and asks separately before its optional first model request. A local setup saves a $0 ceiling. `/collaborate` gives one two-person workflow. See [ONBOARDING.md](ONBOARDING.md) and [COLLABORATION.md](COLLABORATION.md).
-
-## Safer long chats and saved backups
-
-`/context inspect` explains whole-turn context selection and interrupted-tool notices. `/room status` shows hub storage limits. Account backups now support explicit encrypted export, verified deletion/pruning and offline restore; see [ACCOUNTS.md](ACCOUNTS.md). No automatic pruning or hosted service is enabled.
-
-## Configure models
-
-Node22+ is required. Use `/login openrouter` to save a key on Windows, set `OPENROUTER_API_KEY` in the terminal environment, or run a local Ollama model. No key is bundled or imported from another project.
-
-```powershell
-apex --model ollama:your-model
-apex --model openrouter:deepseek/deepseek-v4.1-flash-1017
-apex -p "Explain this project" --model ollama:your-model
-apex --continue
-```
-
-Use `apex --help` for the full command list. `/model`, `/models`, `/new`, `/sessions`, `/resume`, `/history`, `/usage`, `/project`, `/memory`, `/mcp`, `/team`, `/agents`, `/terminal`, `/shell` and `/multiline` work inside the terminal.
-
-### Providers
-
-Built-in providers share the APEX tool loop, Plan/Build controls, chats and approval prompts. Use a model that supports function calls. Provider model catalogs may also include embedding, audio or other models that cannot run this coding-agent loop. Most adapters use Chat Completions. Native Anthropic Messages, OpenAI Responses and Gemini Generate Content adapters are also available; OpenCode selects the API family from its live model catalog. Provider-native hosted tools are outside this harness's client tool loop. xAI currently uses its legacy Chat Completions compatibility API.
-
-### Free access, saved context and motion
-
-`/free` explains local models and supported user-owned free API plans. `/free models` discovers live zero-price OpenRouter text/tool models; `/free use openrouter:EXACT_ID:free` enables free-only routing with no paid fallback. Gemini and Groq require explicit confirmation of your own free account plan because APEX cannot enforce their billing tiers. Details and current official sources: [FREE_MODELS.md](FREE_MODELS.md).
-
-`/vault init` creates the compatible local vault and celebrates only after setup succeeds. `/motion full|reduced|off` controls the activity and completion effects. `/account backup` and opt-in autosync save supported chats, memory and Markdown to your own invite-only service with client-side encryption. Sponsorship stays disabled at $0. No public APEX cloud is deployed by this package. Setup and scope: [ACCOUNTS.md](ACCOUNTS.md).
-
-| Provider ID | Key environment variable | Connection |
-| --- | --- | --- |
-| `openrouter` | `OPENROUTER_API_KEY` | OpenRouter |
-| `openai` | `OPENAI_API_KEY` | Direct OpenAI API |
-| `anthropic` | `ANTHROPIC_API_KEY` | Direct Anthropic Messages API |
-| `deepseek` | `DEEPSEEK_API_KEY` | Direct DeepSeek API |
-| `gemini` | `GEMINI_API_KEY` | Gemini OpenAI-compatible API |
-| `groq` | `GROQ_API_KEY` | Groq |
-| `together` | `TOGETHER_API_KEY` | Together AI |
-| `fireworks` | `FIREWORKS_API_KEY` | Fireworks AI |
-| `mistral` | `MISTRAL_API_KEY` | Mistral |
-| `xai` | `XAI_API_KEY` | xAI |
-| `zen` | `OPENCODE_API_KEY` | OpenCode Console (formerly Zen) |
-| `baidu` | `QIANFAN_API_KEY` | Baidu Qianfan V2 |
-| `dashscope` | `DASHSCOPE_API_KEY` | Alibaba Cloud, workspace endpoint required |
-| `moonshot` | `MOONSHOT_API_KEY` | Moonshot / Kimi |
-| `zai` | `ZAI_API_KEY` | Z.AI / GLM standard API |
-| `minimax` | `MINIMAX_API_KEY` | MiniMax standard API |
-| `siliconflow` | `SILICONFLOW_API_KEY` | SiliconFlow |
-| `cerebras` | `CEREBRAS_API_KEY` | Cerebras |
-| `ollama` | None | Local port 11434 |
-| `lmstudio` | None | Local port 1234 |
-| `llamacpp` | Optional `LLAMACPP_API_KEY` | Running llama.cpp server, port 8080 |
-| `vllm` | Optional `VLLM_API_KEY` | Running vLLM server, port 8000 |
-
-`/providers` shows configured endpoints and whether a key is saved or available in the environment. `/login groq` (or another API provider ID) stores that provider's key through the hidden prompt. `/models groq` queries its catalog; `/model groq:EXACT_MODEL_ID` selects one. Model IDs are discovered or supplied explicitly rather than guessed. No existing dataset-generation credential is imported into APEX, and no new provider is used for dataset generation by adding it here.
-
-`/provider add company https://inference.example.com/v1 COMPANY_API_KEY` adds an OpenAI-compatible endpoint. Append `anthropic`, `responses` or `google` for those native API formats; the default is `openai-compatible`. `/login company` stores its separate key; `/model company:MODEL_ID` selects it. The URL must use HTTPS remotely and cannot embed credentials or query strings. HTTP is accepted only on loopback. `/provider remove company` preserves its saved key; log out before removal if you want that key erased. Built-in providers cannot be shadowed or removed.
-
-`/endpoint PROVIDER HTTPS_BASE_URL` saves an account/region-specific endpoint for either a built-in or custom provider. Provider-specific `PROVIDER_BASE_URL` environment variables take precedence. Ollama's override can omit `/v1`. Alibaba requires the workspace/region URL displayed in your account, such as `https://YOUR_WORKSPACE.us-east-1.maas.aliyuncs.com/compatible-mode/v1`; APEX intentionally has no guessed workspace default. Baidu uses a Qianfan V2 API key, not the older AK/SK or access-token workflow. These integrations do not register accounts or purchase a service.
-
-For local inference, start your server separately, then use `/models ollama`, `/models llamacpp`, `/models vllm`, or `/models lmstudio`, followed by `/model PROVIDER:EXACT_MODEL_ID`. API keys are optional for llama.cpp/vLLM; `/login llamacpp` and `/login vllm` save one if your server requires it. APEX does not download/load models or start servers simply because a provider is listed. Remote endpoint overrides are no longer assumed to be free local inference.
-
-OpenCode's current endpoint root is `https://opencode.ai/inference`. `/login zen`, `/models zen`, then `/model zen:EXACT_MODEL_ID` use its live catalog, endpoint metadata and machine-readable prices. Native routes are validated against the configured OpenCode origin/path before sending a key. Reasoning output items and Gemini signatures are replayed only to their original provider/model. Restricted zero-price models and non-chat models are excluded from APEX's list: OpenCode documents that its free-tier chat endpoints reject third-party clients. Use your own paid or eligible subscription key; APEX does not impersonate OpenCode to access those routes.
-
-OpenRouter and OpenCode supply machine-readable model prices. OpenCode estimates use the highest listed token tiers, including cache-write/long-context tiers, to avoid under-reserving. For other APIs, configure current provider prices with `/pricing provider:MODEL_ID INPUT_USD_PER_M OUTPUT_USD_PER_M`. These are operator-supplied estimates, never reported as actual billed cost. Paid requests without known prices stop before sending, unless the operator explicitly opts into `APEX_ALLOW_UNPRICED=1`. The per-turn ceiling uses conservative byte/token estimates and configured rates; it is not an account-wide billing guarantee. APIs usually report token counts without dollar cost, so APEX shows unknown actual cost and a separate estimate ceiling. OpenCode's BYOK estimates remain estimates rather than actual billed dollar totals. Catalog discovery never issues a paid inference request, and failed inference requests are not automatically retried or routed to another account.
-
-Additional primary references: [OpenCode inference](https://opencode.ai/v2/docs/console/api/inference/), [llama.cpp server](https://github.com/ggml-org/llama.cpp/blob/master/tools/server/README.md), [Baidu Qianfan SDK](https://github.com/baidubce/bce-qianfan-sdk/blob/main/docs/inference.md), [Alibaba workspace endpoints](https://www.alibabacloud.com/help/en/model-studio/compatibility-of-openai-with-dashscope), [Moonshot](https://platform.kimi.ai/docs/get-your-api-key), [Z.AI](https://docs.z.ai/guides/overview/quick-start), [MiniMax](https://platform.minimax.io/docs/api-reference/text-openai-api), [SiliconFlow](https://docs.siliconflow.com/en/api-reference/chat-completions/chat-completions), [Cerebras](https://inference-docs.cerebras.ai/resources/openai).
-
-Provider protocol references checked October 30, 2026: [OpenAI](https://developers.openai.com/api/reference/resources/chat/subresources/completions/methods/create), [Anthropic](https://platform.claude.com/docs/en/api/messages), [DeepSeek](https://api-docs.deepseek.com/), [Groq](https://console.groq.com/docs/openai), [Together](https://docs.together.ai/docs/inference/openai-compatibility), [Gemini](https://ai.google.dev/gemini-api/docs/openai), [Fireworks](https://docs.fireworks.ai/api-reference/post-chatcompletions), [Mistral](https://docs.mistral.ai/api), [xAI](https://docs.x.ai/developers/model-capabilities/legacy/chat-completions), [LM Studio](https://lmstudio.ai/docs/developer).
-
-## Agent workflow
-
-`/plan` and `/build` switch modes; Shift+Tab switches while composing without losing your draft. `apex --mode plan` starts read-only. The selected mode is saved for the next launch. Plan mode advertises only project reads, directory listing and status tools. The runtime also rejects attempted writes, shell calls, memory proposals, delegation and MCP execution even if the model invents a forbidden call. Build mode retains per-action approvals. Mode changes do not execute or automatically submit your draft.
-
-Read-only project tools are scoped to the selected project. File edits, model shell commands, proposed memory notes, delegation and external MCP actions require terminal approval. Inspect exact arguments, then type `y` to allow. One-shot mode denies these actions unless explicitly started with `--approve`. Approved shells and MCP servers run as your user and are not OS sandboxes.
-
-The orchestrator can propose up to three parallel workers with disjoint file scopes. Workers read a shared `.apex/teams/<id>/TASKS.md` and inspect peer progress through `team_status`. Recursive delegation is disabled. Human approval is required before launching a model-proposed team. Workers use separate Git worktrees and share one job ledger. Per-agent model choices are supported, and independent review precedes explicit integration. This is an application budget estimate, not an account-wide provider billing lock.
-
-Saved chats, projects, MCP configuration and editable memory live in `~/.apex-cli` or `APEX_HOME`. `--home` selects another state directory. Memory is explicit notes, not perfect hidden recall. Selected memory and file contents may be sent to your configured model. Credentials for MCP use environment variable names, not secret values in config.
-
-Examples:
+### 3. Pick your model and begin in Plan mode
 
 ```text
-/memory add Use TypeScript and preserve existing APIs
-/mcp add {"name":"tools","type":"stdio","command":"my-mcp-server","args":[]}
-/mcp connect <server-id>
-/team Implement the parser and tests with separate owners
-/terminal new tests
-/terminal send tests npm test
-/multiline
+/setup
+/providers
+/login openrouter
+/models openrouter
+/model openrouter:EXACT_MODEL_ID
+/plan
 ```
 
-End multiline input with `.end`. Esc or Ctrl+C cancels the active turn; `/exit` saves and closes managed shells. `/shell` attaches an ordinary foreground shell; type `exit` to return.
+Use an actual model ID from your provider. API keys go through hidden input and OS-backed storage where available, or through the provider's environment variable. Never put a key in a chat, project file or shell history. Use `/build` when you want implementation, and `/permissions` to inspect what needs approval.
 
-## Terminal appearance
+For a local model, start Ollama, llama.cpp, LM Studio or vLLM yourself, then select the running server's model:
 
-The ANUS terminal presentation is adapted with an APEX gradient block logo, purple welcome text, a large rounded input bar, Build/Plan status, star-prefixed replies, an elapsed working indicator, and a project/model footer. Up/down recall commands; left/right, Home/End, Ctrl+A/E, Ctrl+U/K/W edit the prompt. Long typed input scrolls horizontally. Bracketed multiline pastes collapse to `[Pasted N lines #id]`; the complete original text, tabs and line breaks are restored when you submit. Delete the placeholder to remove the whole paste. Your terminal must support bracketed paste; `/multiline` remains available otherwise. Background shell output redraws the prompt without losing your draft.
+```text
+/models ollama
+/model ollama:YOUR_INSTALLED_MODEL
+```
 
-Color follows your terminal; `NO_COLOR=1` disables decoration. The footer reports cumulative provider-reported tokens and cost when available. Context remaining is omitted because the runtime does not measure it. This renderer keeps terminal scrollback and does not require an alternate screen. Source attribution and license texts are included in `NOTICE` and `licenses/`.
+APEX does not download models or reserve hardware just because an endpoint is listed. Cloud accounts, pricing and free-tier availability belong to their providers; there is no bundled unlimited inference allowance. See [FREE_MODELS.md](FREE_MODELS.md).
 
-## Login and saved API keys
+## Collaborate with people and their agents
 
-`/login codex` and `/login claude` hand the terminal to the installed official CLI's sign-in flow. You complete the provider's browser authentication yourself. APEX never reads, copies or implements those subscription OAuth tokens. `/codex [request]` and `/claude [request]` open the official CLI inside your project; exit it to return to APEX. These are explicit native handoffs, not subscription tokens reused as arbitrary APIs. Native CLIs own their permissions, MCP, history and billing; their usage does not enter APEX's token totals. Plan requests select the native read-only sandbox or Plan mode, but APEX's tool allowlist does not govern the external program. Installation of these optional CLIs is separate.
+![Two-person shared chat, explicit agent invocation, steering and personal/group tabs](docs/images/shared-workspace.png)
 
-`/login PROVIDER` opens a hidden key prompt for any configured API provider. Enter saves; Esc cancels. Windows DPAPI encrypts each key for the current Windows account in `~/.apex-cli/credentials.enc.json`, outside project chats and memory. Keys never appear in terminal history or process arguments. No plaintext fallback exists. On other OSes use environment variables; saved-key vault support is currently Windows only. Environment keys take precedence. `/auth` reports presence without values, and `/logout PROVIDER` removes only the APEX copy; it cannot revoke a provider key or unset a parent-shell environment variable.
+1. Start with `/collaborate` for the guided workflow. Create or join a room through a configured collaboration hub.
+2. Open `/group`. Ordinary messages go to people; `@apex` invokes an opted-in agent.
+3. Use `/group pool` to explicitly opt in your model, funding limits and permitted work scopes. Each owner's key stays local.
+4. Switch with `/tabs personal`, `/tabs group` or Ctrl+G. `/group pull` explicitly imports bounded shared context into the current personal chat.
+5. Inspect `/group agents` for owners, scopes, presence and usage. Review source snapshots with `/group changes`; accept changes through the reviewed apply flow.
 
-Saved API keys authenticate APEX's tool loop directly for their matching provider. `/login openai` now saves only the APEX key. Separately, `/login codex-api` explicitly pipes the saved OpenAI key to `codex login --with-api-key`; this changes that CLI's login when you invoke the command. A saved Anthropic key is also supplied to explicit Claude handoffs through its environment. `/logout codex` or `/logout claude` invokes the official CLI's logout and can affect other apps sharing that login. APEX does not launch logins or paid inference merely on startup.
+```text
+/group
+Can someone review the checkout contract?
+@apex inspect the login flow
+@apex focus on accessibility instead
+/tabs personal
+/group pull
+```
 
-Official references: [Codex authentication](https://learn.chatgpt.com/docs/auth), [Claude Code authentication](https://code.claude.com/docs/en/authentication).
+Multiple opted-in owners can work concurrently with declared scopes and conflict checks. Steering is delivered at the next safe model boundary; it does not cancel an in-flight paid request. A room is not a magical shared filesystem: separate machines need a reachable hub and explicit source synchronization through Git or reviewed snapshots. Group chat and account/room secret storage currently have Windows-specific encryption dependencies. Read [GROUP_CHAT.md](GROUP_CHAT.md), [COLLABORATION.md](COLLABORATION.md) and [COLLAB_PRESENCE.md](COLLAB_PRESENCE.md) before setting up a team.
 
-In the source checkout, terminal captures from the actual APEX process are saved in `artifacts/apex-build.png` and `artifacts/apex-plan-paste.png`. With development dependencies installed, `node scripts/capture-terminal.mjs` records ConPTY output into an xterm screen buffer and renders its cells to PNG; it also tests hidden entry with a fake credential. These are terminal buffer captures, not desktop window photographs. The recorder currently uses Windows and Consolas fonts. Screenshots, recorder and development dependencies are excluded from the installed CLI package.
+## Project knowledge with connections
 
-## Evidence and limits
+![Native vault graph showing notes, backlinks and explicit connections](docs/images/vault-graph.png)
 
-`npm test` checks CLI parsing and actual one-shot child processes with an offline mock provider, including permission denial/approval and real file writes. `node server/runtime/selftest.mjs` checks persistence, tools, cancellation, parallel teams, path ownership and a real local MCP stdio handshake/call. No paid model calls were made to validate this build.
+`/vault` opens the local big-picture graph. Search and inspect notes, follow backlinks, change the view or export an Obsidian Canvas. Private and shared visibility are explicit. Vault content is reference material, not permission to execute instructions found in a note.
 
-Provider-reported token counts and actual costs are shown; unknown cost remains unknown. Current response display is completion-level, not true token streaming. Background terminals use pipe mode; full-screen programs belong in `/shell` or another terminal. MCP HTTP client exists but remote OAuth is untested. This initial release is not complete feature parity with Claude Code or Codex. No affiliation is implied.
+A vault is optional. APEX works with an existing vault or creates local Markdown files you can use independently. The optional Obsidian plugin adds a corresponding graph view; updates preview hashes and preserve backups. APEX does not bundle or fork the proprietary Obsidian application. See [VAULT_GUIDE.md](VAULT_GUIDE.md).
 
-## Collaboration and Obsidian vault
+## A workbench for long-running tasks
 
-Version 0.5 adds encrypted group chats, peer-owned approved inference, source synchronization through Git, isolated team branches, shared job budgets, durable workers, evidence-backed memory and linked local Markdown vaults. The independently authored Obsidian plugin opens shared notes and saves local outbox drafts. It does not fork Obsidian or enable plugins automatically.
+![Native APEX workbench menu for tasks, human questions, context and diagnostics](docs/images/workbench.png)
 
-Start with `/vault init`, `/vault plugin` and `/board`. Read [COLLABORATION.md](COLLABORATION.md) for the complete multi-machine setup, group/context controls, costs, privacy boundaries and exact commands. Normal APEX startup remains terminal-only; `apex hub` is an explicitly started optional transport.
+`/workbench` brings the main inspection tools together. `/task-brief` stores versioned human-owned objectives and constraints, `/attention` handles parked questions, and `/evidence JOB_ID` distinguishes actual receipts from model assertions. `/perf` records local phase timings without a model call. `/context inspect` explains what was selected or omitted from the next model request.
 
-## MCP marketplace, plugins, skills and remote control
+The runtime also provides literal code search, paginated file retrieval, ranged reads, a bounded incremental lexical symbol index and approved hash-checked patches. Provider-native streaming shows progress while the composer remains usable. Context estimates and cache timers are labeled estimates; provider cache expiry does not erase saved chats.
 
-Version 0.6 includes a working bundled project MCP server, a curated integration catalog and live official MCP Registry discovery. It adds Claude-layout plugin marketplaces, installed skill/command snapshots, namespaced invocation and progressive skill loading. Plugin declarations never grant tool permissions or automatically execute hooks.
+## Command reference
 
-Use `/mcp browse`, `/plugin browse` and `/skills`. The optional `/remote` controller supports browser/phone and CLI access to a selected local session, with pairing, viewer/controller roles, finite budgets and explicit approval policy. Normal startup remains terminal-only. See [EXTENSIONS.md](EXTENSIONS.md) for setup, supported plugin formats, remote HTTPS requirements and verified/unverified boundaries.
+Type `/` for the native picker, or `/help` for the full reference. Exact subcommands and approval requirements are described in the linked guides.
 
+### Terminal and model controls
 
-### Cache visibility and efficient workflows
+| Command / key | Purpose |
+| --- | --- |
+| `/setup` | Guided vault, provider, model, budget and permissions setup. |
+| `/model`, `/models PROVIDER`, `/providers` | Select a model or inspect configured providers. |
+| `/login PROVIDER`, `/logout PROVIDER`, `/auth` | Manage provider credentials without displaying their values. |
+| `/provider add ID URL ENV_NAME [protocol]` | Add a custom compatible endpoint. |
+| `/endpoint PROVIDER URL` | Configure an account or region endpoint. |
+| `/pricing PROVIDER:MODEL INPUT_USD_PER_M OUTPUT_USD_PER_M` | Record operator-supplied price estimates. |
+| `/effort` | Choose supported native effort controls or labeled prompt guidance. |
+| `/plan`, `/build`, Shift+Tab | Switch read-only investigation and implementation modes. |
+| `/permissions`, Ctrl+P | Choose Ask, Auto or read-only. Auto is a bounded local policy, not unrestricted execution. |
+| `!command` | Execute a local user command, save its output and optionally send that receipt to the model. |
+| `/commands` | Retrieve saved shell receipts. |
+| `/codex`, `/claude` | Explicit handoff to a separately installed official CLI. |
+| `apex --plain` | Escape-free, line-oriented menus; also selected for `TERM=dumb`. Hidden key entry is unavailable in this mode. |
 
-`/cache` shows the last request's provider-reported cache token counts and available window estimates. `/cache on|off` controls the live footer countdown. Unsupported TTLs remain unknown, and elapsed estimates never claim the server has evicted the cache. No paid keepalives, cache-retention upgrades or third-party agent bundles are enabled by this feature. Research, provider differences and recommended integration priorities: [EFFICIENCY.md](EFFICIENCY.md).
+### Sessions, knowledge and collaboration
+
+| Command | Purpose |
+| --- | --- |
+| `/new`, `/resume`, `/history`, `/usage` | Manage saved chats and inspect recorded usage. |
+| `/fork`, `/forks` | Branch conversations and inspect lineage without deleting the parent. |
+| `/work`, `/collaborate`, `/group`, `/tabs` | Guided team work and personal/shared chat tabs. |
+| `/group pool`, `/group off`, `/group agents` | Explicit owner participation, limits and agent visibility. |
+| `/group pull`, `/group changes`, `/group apply ID` | Import shared context and review source synchronization. |
+| `/vault`, `/vault graph shared` | Inspect local note connections with visibility controls. |
+| `/memory`, `/history-search WORDS` | Inspect saved notes or search project chat history. |
+| `/context inspect`, `/map`, `/packet`, `/passport`, `/handoff` | Context selection, typed maps and reviewed handoffs. |
+
+### Execution, integrations and verification
+
+| Command | Purpose |
+| --- | --- |
+| `/workbench`, `/task-brief`, `/attention` | Durable objectives, pending questions and parked work. |
+| `/requirements`, `/teach`, `/changeset` | Human-owned project guidance and source-bound checks. |
+| `/evidence JOB_ID`, `/receipt` | Inspect actual execution evidence and build reviewable reports. |
+| `/health`, `/perf`, `/route` | Local diagnostics, measured timings and explainable model eligibility. `/route` does not silently switch models. |
+| `/isolation` | Opt a project's model-requested shell commands into a pinned-image, selected-copy Docker profile. |
+| `/mcp`, F4 | Browse/configure MCP integrations and their status. |
+| `/mcp-policy` | Review exact temporary tool/argument grants. Default per-call approval remains. |
+| `/plugin`, `/skills` | Inspect extensions and reusable workflows. |
+| `/github`, `/vercel` | Approved service workflows using the developer's own access. |
+| `/repro`, `/compare`, `/rehearse`, `/extension-trial` | Pinned failure cases, isolated alternatives and confined trials. |
+| `/remote` | Explicitly configured paired remote-control companion. No remote server starts by default. |
+
+## Providers and local servers
+
+Built-in adapters cover OpenRouter, OpenAI, Anthropic, DeepSeek, Groq, Gemini, OpenCode Console, Baidu Qianfan, DashScope, Moonshot, Z.AI, MiniMax, SiliconFlow, Cerebras and supported local endpoints. Custom endpoints can use OpenAI-compatible, Anthropic, Responses or Google API formats.
+
+Support for a provider is not a guarantee that every model supports tools, effort controls, streaming or the same context size. APEX uses discovered or explicitly supplied IDs, keeps route-specific behavior and preserves unknown usage/cost as unknown. See `/providers`, [EFFICIENCY.md](EFFICIENCY.md), [FREE_MODELS.md](FREE_MODELS.md) and [CREDENTIAL_STORAGE.md](CREDENTIAL_STORAGE.md).
+
+## Boundaries worth knowing
+
+- **Your keys and caps stay yours.** The shared capacity model is owner-local execution, not centrally redistributed API tokens. Paid requests use reservations; ambiguous outcomes are retained instead of automatically replayed.
+- **Host commands are not OS-confined.** Approval and scope checks are meaningful controls, but an approved host shell can access other files and networks.
+- **Docker isolation is opt-in and narrower.** It uses an already-installed immutable Linux image, selected public-file copies and no automatic copyback. It does not confine user `!` commands, native handoffs or every extension process. See [ISOLATION.md](ISOLATION.md).
+- **Knowledge can be stale.** Source hashes, citations and visible freshness help you check it; a note, graph edge or passing command does not establish general correctness.
+- **Windows has the strongest local runtime evidence.** macOS/Linux provider-key adapters have fixture coverage; full account/room encryption portability and native behavior on those platforms remain limited. See [CREDENTIAL_STORAGE.md](CREDENTIAL_STORAGE.md).
+- **Core local use starts no browser or remote service.** Collaboration, backups, service plugins and remote control require explicit setup.
+
+## Development and verification
+
+```sh
+npm ci
+npm test
+node server/runtime/selftest.mjs
+npm pack --dry-run --ignore-scripts
+```
+
+Optional walkthroughs require their documented local prerequisites:
+
+```sh
+node scripts/verify-evolution-terminal.mjs   # Windows ConPTY, local fixture provider
+node scripts/verify-group-terminal.mjs       # Two isolated terminal profiles
+node scripts/verify-attention-browser.mjs    # Isolated installed Chromium
+node scripts/verify-runtime-shell.mjs        # Docker + the script's already-local pinned image
+```
+
+The source suite, focused security checks, real terminal walkthroughs, isolated browser checks and pinned Linux Docker checks test the mechanics. They do not establish real-model coding superiority or cross-platform parity. No provider credits are needed for the fixture suite; OS helpers, Git and browser/terminal prerequisites must be available. See [VALIDATION.md](VALIDATION.md) for the recorded evidence and [CONTRIBUTING.md](CONTRIBUTING.md) for development boundaries.
+
+The repository includes test-on-push CI and a **manual** npm publishing workflow. A source push does not publish a registry release. Any future public release needs the intended npm account, package permissions and a fresh release check.
+
+## More documentation
+
+- [Onboarding](ONBOARDING.md) and [collaboration](COLLABORATION.md)
+- [Group chat](GROUP_CHAT.md) and [vault guide](VAULT_GUIDE.md)
+- [Plugins, skills and MCP](EXTENSIONS.md) and [MCP permissions](MCP_POLICIES.md)
+- [Human attention](ATTENTION.md), [project contracts](PROJECT_CONTRACTS.md) and [experiments](EXPERIMENTS.md)
+- [Execution isolation](ISOLATION.md), [credential storage](CREDENTIAL_STORAGE.md) and [account features](ACCOUNTS.md)
+- [Implementation map and limits](EVOLUTION.md), [roadmap status](ROADMAP_STATUS.md) and [changelog](CHANGELOG.md)
+
+## License
+
+[MIT](LICENSE). Third-party notices and licenses are in [NOTICE](NOTICE) and [licenses/](licenses/). Source licensing does not grant access to this private repository or free access to third-party model services.

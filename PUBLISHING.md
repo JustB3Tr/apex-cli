@@ -3,6 +3,10 @@
 Source repository: https://github.com/JustB3Tr/apex-cli, default branch master.
 Package: apex-agent-cli. Installed command: apex.
 
+Publication is currently paused. The local working build is 0.15.0; installing it locally does not update GitHub/npm. Do not reuse credentials pasted in old chats. Fresh account/name checks and explicit release authorization are required before publishing; historical authentication checks below may be stale.
+
+Local release checks: build the plugin from its source, run the complete suite/runtime checks, exercise the terminal and graph SDK/browser fixtures, inspect `npm pack` for private state and compare packaged/installed bytes. Current recipes and diagnostics are data, not paid release jobs. No check requires a real provider request. `VALIDATION.md` names the evidence boundaries.
+
 ## First public release
 
 The registry lookup returned Not Found on October 30, 2026. This is not a name reservation or a guarantee that npm will accept the name. The local npm session requires authentication.

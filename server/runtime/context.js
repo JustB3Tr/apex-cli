@@ -1,4 +1,11 @@
 const bytes=value=>Buffer.byteLength(JSON.stringify(value));
+export function contextBudget({contextLength,maxOutputTokens=4096,toolHeadroom=2048}={}){
+ const limit=Number.isSafeInteger(contextLength)&&contextLength>0?contextLength:null;
+ const output=Math.max(1,Math.min(4096,Number.isSafeInteger(maxOutputTokens)&&maxOutputTokens>0?maxOutputTokens:4096,limit?Math.max(1,Math.floor(limit*.5)):4096));
+ const toolReserve=limit?Math.min(toolHeadroom,Math.max(0,Math.floor(limit*.1))):toolHeadroom;
+ const input=limit?Math.max(1,Math.min(Math.floor(limit*.8),limit-output-toolReserve)):125000;
+ return {outputTokens:output,toolHeadroomTokens:toolReserve,maxBytes:Math.min(500000,input*4),inputEstimateTokens:input,contextLength:limit,estimator:'UTF-8 bytes / 4 estimate; provider tokenizer may differ'};
+}
 const unknownResult=id=>JSON.stringify({error:'apex_interrupted_tool_outcome_unknown',tool_call_id:id,notice:'No durable tool result was saved for this call. The action may already have run. Inspect the project, job timeline and billing evidence before proposing any repeat. This is a context-repair notice, not evidence of success or failure.'});
 function validCalls(calls){
  if(!Array.isArray(calls)||!calls.length||calls.length>64)return false;const ids=new Set();
@@ -39,6 +46,6 @@ export function projectContext({history,current,system,tools,model,maxBytes=5000
  const selected=[];let count=0;
  for(let i=history.turns.length-1;i>=0;i--){const turn=history.turns[i].map(m=>wire(m,model));if(count+turn.length>maxMessages||size([mandatory[0],...turn,...selected.flat(),...current])>maxBytes)break;selected.unshift(turn);count+=turn.length;}
  const used=history.turnReports.slice(history.turns.length-selected.length),repairs=Object.fromEntries(Object.keys(history.report).map(key=>[key,used.reduce((n,r)=>n+r[key],0)]));
- const messages=[mandatory[0],...selected.flat(),...current],report={...repairs,sourceRepairs:history.report,sourceTurns:history.turns.length,includedTurns:selected.length,omittedTurns:history.turns.length-selected.length,includedMessages:count,currentMessages:current.length,contextBytes:size(messages),maxBytes,policy:'whole user turns; missing durable tool receipts are unknown; original transcript unchanged'};
+ const messages=[mandatory[0],...selected.flat(),...current],report={...repairs,sourceRepairs:history.report,sourceTurns:history.turns.length,includedTurns:selected.length,omittedTurns:history.turns.length-selected.length,includedMessages:count,currentMessages:current.length,contextBytes:size(messages),breakdownBytes:{system:bytes(system),tools:bytes(tools),history:bytes(selected.flat()),current:bytes(current)},maxBytes,maxMessages,policy:'whole user turns; missing durable tool receipts are unknown; original transcript unchanged'};
  return {messages,report};
 }

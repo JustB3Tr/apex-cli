@@ -17,6 +17,12 @@ export async function createStore(home=process.env.APEX_HOME||path.join(os.homed
   async updateProject(id,changes){return doc.mutate(s=>{const p=s.projects.find(p=>p.id===id);if(!p)throw Error('Project not found');for(const key of ['vaultPath','repo','sync','contextMode','roomId'])if(Object.hasOwn(changes,key))p[key]=changes[key];return p;});},
   async listSessions(projectId){return (await list('sessions',s=>s.projectId===projectId)).map(({messages,...s})=>({...s,messageCount:messages.length}));},
   async createSession({projectId,title}){await store.getProject(projectId);return doc.mutate(s=>{const row={id:randomUUID(),projectId,title:String(title||'New chat').slice(0,150),createdAt:stamp(),updatedAt:stamp(),messages:[]};s.sessions.push(row);return row;});},
+  async forkSession(parentId,{messageId,title}={}){return doc.mutate(s=>{
+   const parent=s.sessions.find(r=>r.id===parentId);if(!parent)throw Error('Parent chat not found');
+   const end=messageId?parent.messages.findIndex(m=>m.id===messageId):parent.messages.length-1;if(messageId&&end<0)throw Error('Choose a message from the parent chat');
+   const messages=structuredClone(parent.messages.slice(0,end+1).filter(m=>!m.agentId)).map(m=>({...m,id:randomUUID(),jobId:null,forkedFromMessageId:m.id,...(m.usage?{usage:{...m.usage,inherited:true}}:{})}));
+   const row={id:randomUUID(),projectId:parent.projectId,title:String(title||parent.title+' (fork)').slice(0,150),createdAt:stamp(),updatedAt:stamp(),fork:{parentId,parentMessageId:parent.messages[end]?.id||null,createdAt:stamp()},messages};s.sessions.push(row);return row;
+  });},
   async getSession(id){const row=(await list('sessions',s=>s.id===id))[0];if(!row)throw Error('Chat not found');return row;},
   async appendMessage(sessionId,message){return doc.mutate(s=>{const session=s.sessions.find(r=>r.id===sessionId);if(!session)throw Error('Chat not found');const duplicate=message.id&&session.messages.find(m=>m.id===message.id);if(duplicate)return duplicate;const row={...message,id:message.id||randomUUID(),createdAt:message.createdAt||stamp()};session.messages.push(row);session.updatedAt=stamp();return row;});},
   async listMemory(projectId){return list('memory',m=>!m.projectId||m.projectId===projectId);},

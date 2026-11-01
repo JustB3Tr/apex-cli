@@ -1,0 +1,27 @@
+import {randomUUID} from 'node:crypto';
+import {roomClient} from './rooms.js';
+import {reduceCollaboration} from './collaboration.js';
+import {offlineOutbox} from './offline-outbox.js';
+import {digest,scrub} from './safe-content.js';
+const uuid=v=>typeof v==='string'&&/^[a-f0-9-]{36}$/i.test(v);
+export function decisionInbox({store,projectId,hostId,client=roomClient(store)}){
+ const outbox=offlineOutbox(store,client);let busy=false;
+ async function actions(deviceId){return (await store.records('events',{projectId,type:'remote_decision_action'})).filter(e=>e.data.hostId===hostId&&e.data.deviceId===deviceId).slice(-30).map(r=>({id:r.id,...r.data}));}
+ return {
+ async view(deviceId,{enabled=false}={}){if(!enabled)return {enabled:false,items:[],actions:[]};const p=await store.getProject(projectId);if(!p.roomId)return {enabled:true,items:[],actions:await actions(deviceId)};const m=await client.membership(p.roomId),board=reduceCollaboration(await store.records('events',{roomId:p.roomId,type:'room_event'})),items=[];
+  for(const d of board.decisions.filter(d=>d.status==='proposed'&&d.terms.owner===m.memberId).slice(-20)){
+   let row=(await store.records('events',{projectId,type:'remote_decision_preview'})).findLast(r=>r.data.hostId===hostId&&r.data.deviceId===deviceId&&r.data.entityId===d.id&&r.data.hash===d.hash&&r.data.version===d.version&&!r.data.consumedBy&&Date.parse(r.data.expiresAt)>Date.now());
+   if(!row){const prior=d.previous?.at(-1),changes=prior?Object.keys(d.terms).filter(k=>JSON.stringify(d.terms[k])!==JSON.stringify(prior.terms[k])).map(k=>({field:k,before:prior.terms[k],after:d.terms[k]})):[];row=await store.saveRecord('events',{projectId,type:'remote_decision_preview',data:{hostId,deviceId,roomId:p.roomId,entityId:d.id,owner:m.memberId,version:d.version,hash:d.hash,terms:d.terms,comments:d.comments.slice(-10),changes,expiresAt:new Date(Date.now()+300000).toISOString(),reason:'This selected host is the decision owner. Acceptance/rejection records a decision only; it never starts work or grants tools.'}});}
+   const {hostId:_,deviceId:__,...data}=row.data;items.push({id:row.id,...data});
+  }return {enabled:true,items,actions:await actions(deviceId),freshness:'Locally synced proposals. Submission refreshes room history and checks exact version, owner, membership and expiry.'};
+ },
+ async respond(deviceId,input){if(!uuid(input.requestId)||!uuid(input.id)||!['accept','reject','comment'].includes(input.action))throw Error('Choose an exact preview, request ID and allowed decision action');const requestHash=digest(JSON.stringify(input)),existing=await store.record('events',input.requestId);if(existing){if(existing.type!=='remote_decision_action'||existing.projectId!==projectId||existing.data.hostId!==hostId||existing.data.deviceId!==deviceId||existing.data.requestHash!==requestHash)throw Error('Request ID belongs to another device or action');return existing;}
+  if(busy)throw Error('Another decision answer is being processed');busy=true;
+  let action;try{const preview=await store.record('events',input.id),p=await store.getProject(projectId);if(preview?.type!=='remote_decision_preview'||preview.data.consumedBy||preview.projectId!==projectId||preview.data.hostId!==hostId||preview.data.deviceId!==deviceId||preview.data.roomId!==p.roomId||preview.data.hash!==input.hash||preview.data.version!==input.version||Date.parse(preview.data.expiresAt)<=Date.now())throw Error('Decision preview expired, changed or belongs to another device/host');const m=await client.membership(p.roomId);if(m.memberId!==preview.data.owner)throw Error('Decision owner changed');if(input.action==='comment'&&(typeof input.comment!=='string'||!input.comment.trim()||input.comment.length>6000))throw Error('A bounded comment is required');
+   action=await store.saveRecord('events',{id:input.requestId,projectId,type:'remote_decision_action',data:{hostId,deviceId,requestHash,previewId:preview.id,entityId:preview.data.entityId,version:input.version,hash:input.hash,action:input.action,state:'preparing'}});
+   const queued=await outbox.submitDecision(projectId,{kind:'decision-'+input.action,entityId:preview.data.entityId,hash:input.hash,version:input.version,comment:input.comment,expiresAt:preview.data.expiresAt});action=await store.saveRecord('events',{...action,data:{...action.data,outboxId:queued.draft.id,state:'sending'}});const published=await queued.publish();await store.saveRecord('events',{...preview,data:{...preview.data,consumedBy:action.id}});return store.saveRecord('events',{...action,data:{...action.data,state:published.data.state,ackEventId:published.data.ackEventId}});
+  }catch(error){if(action)await store.saveRecord('events',{...action,data:{...action.data,state:action.data.outboxId?'unknown':'conflict',reason:scrub(error.message).slice(0,300)}});throw error;}finally{busy=false;}
+ },
+ async reconcile(deviceId,id){const r=await store.record('events',id);if(r?.type!=='remote_decision_action'||r.projectId!==projectId||r.data.hostId!==hostId||r.data.deviceId!==deviceId||!r.data.outboxId)throw Error('No matching device publication to inspect');const draft=await outbox.refresh(projectId,r.data.outboxId);if(draft.data.state==='acknowledged'){const preview=await store.record('events',r.data.previewId);if(preview)await store.saveRecord('events',{...preview,data:{...preview.data,consumedBy:r.id}});}return store.saveRecord('events',{...r,data:{...r.data,state:draft.data.state,ackEventId:draft.data.ackEventId||null}});}
+ };
+}

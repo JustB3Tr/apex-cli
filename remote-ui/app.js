@@ -2,6 +2,20 @@ const byId=id=>document.getElementById(id),pair=byId('pair'),workspace=byId('wor
 const storageKey='apex.remote.pending.v1',cards=new Map();
 let csrf='',device=null,state=null,timer,refreshing=null,running=false,posting=false,lastMessages='',failures=0,stopped=false,pending=null;
 const error=e=>{byId('error').textContent=e?.message||String(e||'');};
+const decisionRoot=document.createElement('section');decisionRoot.setAttribute('aria-label','Project decision inbox');byId('approvals').after(decisionRoot);
+const decisionToolbar=document.createElement('nav'),inboxTab=document.createElement('button'),chatTab=document.createElement('button');decisionToolbar.setAttribute('aria-label','Companion view');inboxTab.type=chatTab.type='button';inboxTab.textContent='Decision inbox';chatTab.textContent='Chat / tools';decisionToolbar.append(inboxTab,chatTab);byId('messages').before(decisionToolbar);let companionView='inbox';
+function companionLayout(enabled){const review=state?.attentionInbox?.some(q=>['open','answered'].includes(q.status));enabled=enabled||review;decisionToolbar.hidden=!enabled;const inbox=enabled&&companionView==='inbox';decisionRoot.hidden=attentionRoot.hidden=!inbox;byId('messages').hidden=byId('approvals').hidden=byId('prompt').hidden=inbox;inboxTab.textContent=review?'Review inbox':'Decision inbox';inboxTab.setAttribute('aria-pressed',String(inbox));chatTab.setAttribute('aria-pressed',String(!inbox));}
+inboxTab.onclick=()=>{companionView='inbox';companionLayout(state?.decisionInbox?.enabled);};chatTab.onclick=()=>{companionView='chat';companionLayout(state?.decisionInbox?.enabled);};
+const decisionCards=new Map(),decisionPending=new Set();
+function renderDecisions(inbox){
+ companionLayout(inbox?.enabled);const visible=new Set();for(const item of inbox?.items||[]){visible.add(item.id);if(decisionCards.has(item.id))continue;const card=document.createElement('article'),heading=document.createElement('h2'),reason=document.createElement('p'),rationale=document.createElement('pre'),disclosure=document.createElement('details'),summary=document.createElement('summary'),details=document.createElement('pre'),comment=document.createElement('textarea');heading.textContent=item.terms.title+' · v'+item.version;reason.textContent='Your selected PC owns this proposal. Answering never starts work. Preview expires '+item.expiresAt;rationale.textContent=item.terms.rationale;summary.textContent='Inspect alternatives, evidence, comments and exact version';details.textContent=JSON.stringify({hash:item.hash,terms:item.terms,changes:item.changes,comments:item.comments},null,2);disclosure.append(summary,details);comment.setAttribute('aria-label','Decision comment for '+item.terms.title);comment.placeholder='Comment or reason for requesting changes';comment.maxLength=6000;card.append(heading,reason,rationale,disclosure,comment);
+  for(const [label,action] of [['Accept exact proposal','accept'],['Reject proposal','reject'],['Send comment','comment']]){const button=document.createElement('button');button.type='button';button.textContent=label;button.onclick=async()=>{if(decisionPending.has(item.id))return;if(!confirm(label+' v'+item.version+'? This records a project decision only. It does not run the agent.'))return;const requestId=crypto.randomUUID();decisionPending.add(item.id);for(const b of card.querySelectorAll('button'))b.disabled=true;try{await api('decision',{requestId,id:item.id,hash:item.hash,version:item.version,action,...(action==='comment'?{comment:comment.value}:{})});error('');await refresh();}catch(e){error(Error(e.message+' Publication ID '+requestId+'. Inspect the decision history; no answer was replayed.'));}};card.append(button);}
+  decisionCards.set(item.id,card);decisionRoot.append(card);
+ }
+ for(const [id,card] of decisionCards)if(!visible.has(id)){card.remove();decisionCards.delete(id);decisionPending.delete(id);}
+ let recovery=decisionRoot.querySelector('[data-decision-recovery]');if(!recovery){recovery=document.createElement('div');recovery.dataset.decisionRecovery='true';decisionRoot.append(recovery);}recovery.replaceChildren();
+ for(const action of inbox?.actions||[]){if(!['unknown','sending','preparing'].includes(action.state))continue;const line=document.createElement('p'),button=document.createElement('button');line.textContent='Decision publication '+action.id+' · '+action.state+'. Refresh checks history only.';button.textContent='Check publication';button.onclick=async()=>{button.disabled=true;try{await api('decision-refresh',{id:action.id});await refresh();}catch(e){error(e);}finally{button.disabled=false;}};recovery.append(line,button);}
+}
 const recovery=document.createElement('section'),notice=document.createElement('p'),retry=document.createElement('button'),dismiss=document.createElement('button');
 recovery.setAttribute('aria-label','Submission recovery');notice.setAttribute('role','status');retry.type=dismiss.type='button';retry.textContent='Retry this exact request ID';dismiss.textContent='Dismiss after checking host jobs';recovery.append(notice,retry,dismiss);byId('prompt').before(recovery);
 function scope(){return state?[state.hostId,state.sessionId,device.id].join(':'):'';}
@@ -34,6 +48,17 @@ function renderApprovals(items){
  }
  for(const [id,card] of cards)if(!active.has(id)){card.remove();cards.delete(id);}
 }
+const attentionRoot=document.createElement('section'),attentionCards=new Map();attentionRoot.setAttribute('aria-label','Human review questions');byId('prompt').before(attentionRoot);
+function renderAttention(questions){
+ const visible=new Set();
+ for(const q of questions||[]){if(!['open','answered'].includes(q.status))continue;visible.add(q.id);let card=attentionCards.get(q.id);
+  const renderKey=[q.hash,q.status,q.sourceStatus].join(':');if(card&&card.dataset.version===renderKey)continue;if(card)card.remove();card=document.createElement('article');card.dataset.version=renderKey;const title=document.createElement('b'),detail=document.createElement('p');title.textContent=q.question;detail.textContent=q.status+' · source '+q.sourceStatus+' · answer only, never execution permission';card.append(title,detail);
+  const disclosure=document.createElement('details'),summary=document.createElement('summary'),preview=document.createElement('pre');summary.textContent='Inspect exact question, context and proposed operation';preview.textContent=JSON.stringify({id:q.id,version:q.version,hash:q.hash,kind:q.kind,context:q.context,operation:q.operation,sourceHash:q.source?.hash,sourceStatus:q.sourceStatus,visibility:q.visibility,expiresAt:q.expiresAt,...(q.answer?{answer:q.answer}:{})},null,2);disclosure.append(summary,preview);card.append(disclosure);
+  if(q.status==='open'){const answer=document.createElement('textarea'),button=document.createElement('button');answer.setAttribute('aria-label','Answer '+q.question);answer.rows=3;button.type='button';button.textContent='Save answer for host review';button.disabled=q.sourceStatus!=='current';button.onclick=async()=>{if(!answer.value.trim())return;button.disabled=true;try{await api('attention-answer',{id:q.id,version:q.version,hash:q.hash,answer:answer.value});await refresh();}catch(e){error(e);button.disabled=q.sourceStatus!=='current';}};card.append(answer,button);}else{const note=document.createElement('p');note.textContent='Answer saved. Explicit continuation happens on the host.';card.append(note);}
+  attentionCards.set(q.id,card);attentionRoot.append(card);
+ }
+ for(const [id,card] of attentionCards)if(!visible.has(id)){card.remove();attentionCards.delete(id);}
+}
 function render(value){
  state=value;csrf=state.device.csrf;device=state.device;pair.hidden=true;workspace.hidden=false;
  byId('connection').textContent=state.project+' / '+state.title+' · '+state.model+' · connected';
@@ -44,7 +69,7 @@ function render(value){
   if(accepted){const prior=pending;savePending(null);if(byId('text').value===prior.message)byId('text').value='';notice.textContent='Request '+prior.id+' acknowledged by host: '+accepted.status+'.';}
  }
  const encoded=JSON.stringify(state.messages);if(encoded!==lastMessages){lastMessages=encoded;const root=byId('messages');root.replaceChildren();for(const message of state.messages){if(!message.content)continue;const article=document.createElement('article'),role=document.createElement('b'),body=document.createElement('pre');role.textContent=message.role.toUpperCase();body.textContent=message.content;article.append(role,body);root.append(article);}root.scrollTop=root.scrollHeight;}
- renderApprovals(state.approvals);controls();
+ renderApprovals(state.approvals);renderDecisions(state.decisionInbox);renderAttention(state.attentionInbox);controls();
 }
 function refresh(){
  if(refreshing)return refreshing;clearTimeout(timer);

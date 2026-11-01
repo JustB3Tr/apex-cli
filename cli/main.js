@@ -1,3 +1,18 @@
+import {mcpPolicyCommands,MCP_POLICY_HELP} from './mcp-policy-commands.js';
+import {PlainTerminalUI} from './plain-terminal.js';
+import {inspectorCommands,INSPECTOR_HELP} from './inspector-commands.js';
+import {experimentCommands,EXPERIMENT_HELP} from './experiment-commands.js';
+import {projectContractCommands,CONTRACT_HELP} from './project-contract-commands.js';
+import {attentionCommands,ATTENTION_HELP} from './attention-commands.js';
+import {groupCommands,GROUP_HELP} from './group-commands.js';
+import {vaultCommands,VAULT_GRAPH_HELP} from './vault-commands.js';
+import {continuityCommands,CONTINUITY_HELP} from './continuity-commands.js';
+import {communityCommands,COMMUNITY_HELP} from './community-commands.js';
+import {insightCommands,INSIGHT_HELP} from './insight-commands.js';
+import {integrationLogin} from '../server/integrations.js';
+import {workCommands,WORK_HELP} from './work-commands.js';
+import {popupSetup,modelMenu,effortMenu,mcpMenu} from './menus.js';
+import {dashboardRows} from './dashboard.js';
 import {cacheCommands,CACHE_HELP} from './cache-commands.js';
 import {latestCache} from '../server/runtime/cache.js';
 import {freeCommands,FREE_HELP} from './free-commands.js';
@@ -28,9 +43,11 @@ import {headerLines,starAnswer,fg,PALETTE} from './look.js';
 
 import {credentialVault} from './credentials.js';
 import {terminalText} from './output.js';
-import {guidedSetup,COLLABORATE_GUIDE} from './setup.js';
+import {COLLABORATE_GUIDE} from './setup.js';
+import {autoPermission,commandCatalog,PERMISSIONS} from './permissions.js';
+import {executeShell,shellTurn,shareShellReceipt} from './shell-command.js';
 
-import {runNative} from './native.js';
+import {runNative,nativeVersion} from './native.js';
 
 import {providerCatalog,providerKeyMap,customProvider,modelPrice,validateBaseURL} from '../server/runtime/providers.js';
 
@@ -50,6 +67,7 @@ export const HELP=`APEX CLI - terminal-native coding agent
 
   apex -p "request" --model MODEL       Run one turn and exit
 
+  apex --plain                         Line-oriented terminal, no animations
   apex -p "request" --json              Emit a structured result
 
 
@@ -71,7 +89,11 @@ Flags: --home PATH, --approve (explicitly approve tools in one-shot mode),
 Commands:
 
  /help                  This guide
- /setup                 Guided provider, model, price and Plan-mode setup
+ /setup                 Vault, provider, model and permissions setup
+ /effort [auto|low|medium|high|xhigh|max]   Reasoning effort menu
+ /permissions [ask|auto|read-only]   Show or change permissions (Ctrl+P)
+ /commands [ID|send ID]  Inspect saved local shell receipts; explicitly send one
+ !command               Run a local command, save output, then offer model help
  /collaborate           One two-person project workflow
 
  /plan /build           Switch mode (also Shift+Tab)
@@ -148,9 +170,9 @@ Commands:
 
 
 
-Writes, commands, memory proposals, delegation and external MCP calls require
-
-approval. Esc or Ctrl+C cancels an active turn. Shells are not OS sandboxes.
+Ask permissions prompt for writes, execution, memory, delegation and external calls.
+Auto may approve bounded project source/text writes and literal location/time inspection.
+Other actions still ask. Esc or Ctrl+C cancels an active turn. Shells are not OS sandboxes.
 
 Input: arrows edit, up/down recall history, Ctrl+A/E move, Ctrl+U/K clear.
 
@@ -174,7 +196,7 @@ export function parseArgs(args){
 
   const a=args[i];if(values[a]){if(!args[i+1]||args[i+1].startsWith('--'))throw Error(`Missing value for ${a}`);options[values[a]]=args[++i];}
 
-  else if(['--continue','--json','--approve','--help','--version'].includes(a))options[a.slice(2)]=true;
+  else if(['--continue','--json','--approve','--help','--version','--plain'].includes(a))options[a.slice(2)]=true;
 
   else if(a==='-h')options.help=true;
 
@@ -192,11 +214,11 @@ export function parseArgs(args){
 
 export async function run(args=process.argv.slice(2)){
 
- const options=parseArgs(args);if(options.help){stdout.write(HELP+FEATURE_HELP+EXTENSION_HELP+REMOTE_HELP+ACCOUNT_HELP+FREE_HELP+CACHE_HELP);return;}
+ const options=parseArgs(args);if(options.help){stdout.write(HELP+FEATURE_HELP+EXTENSION_HELP+REMOTE_HELP+ACCOUNT_HELP+FREE_HELP+CACHE_HELP+WORK_HELP+INSIGHT_HELP+COMMUNITY_HELP+CONTINUITY_HELP+VAULT_GRAPH_HELP+GROUP_HELP+EXPERIMENT_HELP+CONTRACT_HELP+ATTENTION_HELP+INSPECTOR_HELP+MCP_POLICY_HELP);return;}
 
  if(options.version){stdout.write(JSON.parse(await readFile(new URL('../package.json',import.meta.url),'utf8')).version+'\n');return;}
 
- const interactive=Boolean(stdin.isTTY&&stdout.isTTY);
+ const interactive=Boolean(options.plain||stdin.isTTY&&stdout.isTTY);
 
  if(!interactive&&options.prompt===undefined)throw Error('Use an interactive terminal, or pass -p "request" for one-shot mode.');
 
@@ -208,7 +230,9 @@ export async function run(args=process.argv.slice(2)){
 
  let settings=await store.readSettings(),model=options.model||settings.defaultModel||'',session;
 
- let mode=options.mode||settings.defaultMode||'build';if(!['build','plan'].includes(mode))mode='build';
+ let permissions=PERMISSIONS.includes(settings.permissions)?settings.permissions:'ask';
+ let shellAbort,lastProjection,nextRecovery;
+ let mode=options.mode||settings.defaultMode||'build';if(!['build','plan'].includes(mode))mode='build';if(options.mode==='build'&&permissions==='read-only')permissions='ask';
 
  if(options.mode)await store.writeSettings({defaultMode:mode});
 
@@ -220,18 +244,20 @@ export async function run(args=process.argv.slice(2)){
 
  session=options.continue&&sessions.length?await store.getSession(sessions.at(-1).id):await store.createSession({projectId:project.id,title:options.prompt?.slice(0,80)||'Terminal chat'});
 
- const rl=interactive&&!options.json?new TerminalUI(stdin,stdout):null;
+ const rl=interactive&&!options.json?new (options.plain||process.env.TERM==='dumb'?PlainTerminalUI:TerminalUI)(stdin,stdout):null;
 
- if(rl){rl.mode=mode;rl.setMotion(settings.motion||rl.motion);}
+ if(rl){rl.commands=commandCatalog(HELP+FEATURE_HELP+EXTENSION_HELP+REMOTE_HELP+ACCOUNT_HELP+FREE_HELP+CACHE_HELP+WORK_HELP+INSIGHT_HELP+COMMUNITY_HELP+CONTINUITY_HELP+VAULT_GRAPH_HELP+GROUP_HELP+EXPERIMENT_HELP+CONTRACT_HELP+ATTENTION_HELP+INSPECTOR_HELP+MCP_POLICY_HELP);rl.permissions=permissions;rl.mode=mode;rl.setMotion(settings.motion||rl.motion);}
 
  const print=(value='')=>rl?rl.write(value):output.write(terminalText(value)+'\n');
  const rendered=value=>rl?rl.write(value,{trusted:true}):print(value);
 
+ let groupControl;const personalTurns=new Map(),personalTasks=new Set();
+ const livePreviews=new Map();
  let busy=false,approvalQueue=Promise.resolve(),lastPrinted='',closing=false,nativeBusy=false;
 
  const shells=new Map(),pendingApprovals=new Set();
 
- const runtime=createRuntime({store,getCredential:provider=>vault.get(provider),emit:event=>{
+ const runtime=createRuntime({store,getCredential:provider=>vault.get(provider),requestContextRecovery:rl?async info=>{rl.stopWorking();try{return await rl.dialog({title:'Recover project context',description:info.omittedTurns?'Older turns omitted. Cache expiry does not delete saved history.':'Estimated cache window elapsed. Saved history is intact.',items:[...(info.vaultAvailable?[{value:'vault',label:'Look through vault and connections',description:'Relevant notes and local links; may miss details'}]:[]),{value:'reread',label:'Reread saved chat history',description:'Must fit the context limit; may cost more'},{value:'recent',label:'Keep recent context',description:info.omittedTurns+' older turns outside current selection'},{value:'cancel',label:'Cancel before model request'}]});}finally{rl.startWorking();}}:undefined,emit:event=>{
 
   if(event.type==='approval'){pendingApprovals.add(event.id);
 
@@ -241,7 +267,14 @@ export async function run(args=process.argv.slice(2)){
 
     let approved=options.approve===true;
 
-    if(rl){const answer=await rl.question('Allow this action? [y/N]');approved=/^y(?:es)?$/i.test(answer.trim());}
+    if(rl){
+     const approvalSession=await store.getSession(event.sessionId),approvalMode=approvalSession.messages.findLast(m=>m.role==='user')?.mode||mode;
+     const policy=await autoPermission({tool:event.tool,args:event.args,root:project.path,mode:approvalMode,permissions:event.sessionId!==session.id?'ask':permissions});
+     await store.saveRecord('events',{type:'permission_decision',projectId:project.id,sessionId:session.id,data:{tool:event.tool,...policy}});
+     if(policy.decision==='allow'){approved=true;print('Auto approved: '+policy.reason);}
+     else if(policy.decision==='deny'){approved=false;print('Denied: '+policy.reason);}
+     else{approved=await rl.dialog({title:'Allow '+event.tool+'?',description:'Agent chat '+event.sessionId+'. Local permission only.',items:[{value:false,label:'Deny'},{value:true,label:'Allow this action'}]})===true;}
+    }
 
     else if(!approved)print('Denied: non-interactive mode requires explicit --approve.');
 
@@ -250,14 +283,18 @@ export async function run(args=process.argv.slice(2)){
    }).catch(e=>print(e.message));
 
   }else if(event.type==='activity'){rl?.setActivity(event.label);}
-  else if(event.type==='delta'&&!options.json){rendered('\n'+(rl?starAnswer(terminalText((event.agentId?'agent '+event.agentId.slice(0,8)+': ':'')+event.text)):`APEX > ${event.text}`));lastPrinted=event.text;}
+  else if(event.type==='delta'&&event.partial){if(event.sessionId===session.id&&(!groupControl||groupControl.tab==='personal')){const id=event.sessionId+':'+(event.agentId||'main'),text=(livePreviews.get(id)||'')+event.text;livePreviews.set(id,text.slice(-1200));rl?.setLiveResponse(text);rl?.setActivity('Receiving response · '+(event.streamedChars||0)+' characters');}}
+  else if(event.type==='verification'&&!options.json&&event.sessionId===session.id&&(event.checks||event.edits)){print('Evidence: '+event.statement+' /evidence '+event.jobId);}
+  else if(event.type==='delta'&&!options.json&&(!groupControl||groupControl.tab==='personal')&&event.sessionId===session.id){livePreviews.delete(event.sessionId+':'+(event.agentId||'main'));rl?.setLiveResponse('');rendered('\n'+(rl?starAnswer(terminalText((event.agentId?'agent '+event.agentId.slice(0,8)+': ':'')+event.text)):`APEX > ${event.text}`));lastPrinted=event.text;}
 
   else if(event.type==='agent')print(`[${event.agent.name}] ${event.agent.status} · ${event.agent.scope?.join(', ')}`);
 
-  else if(event.type==='error')print(`APEX stopped: ${event.message}`);
+  else if(event.type==='attention')print('Waiting for human review · '+(event.questionId||event.id||'')+' · /attention');
+  else if(event.type==='steering')print('Steering '+event.status+' · '+event.id);
+  else if(event.type==='error'){rl?.setLiveResponse('');print(`APEX stopped: ${event.message}`);}
 
-  else if(event.type==='context'&&!options.json&&(event.omittedTurns||event.missingResults||event.invalidExchanges||event.orphanResults))print(`Context: ${event.includedTurns}/${event.sourceTurns} saved turns included; ${event.missingResults} tool outcomes unknown. Original history preserved. /context inspect`);
-  else if(event.type==='usage'&&!options.json){if(rl&&!event.agentId&&event.sessionId===session.id&&event.model===model)rl.footer.cache=event.cache;print(`  tokens ${event.inputTokens??'?'} in / ${event.outputTokens??'?'} out · cost ${event.cost==null?'unknown'+(event.estimatedCost!=null?` · estimate ceiling $${event.estimatedCost.toFixed(6)}`:''):'$'+event.cost.toFixed(6)}`);}
+  else if(event.type==='context'&&!options.json){lastProjection=event;if(event.omittedTurns||event.missingResults||event.invalidExchanges||event.orphanResults)print(`Context: ${event.includedTurns}/${event.sourceTurns} saved turns included; ${event.missingResults} tool outcomes unknown. Original history preserved. /context inspect`);refreshDashboard().catch(()=>{});}
+  else if(event.type==='usage'&&!options.json){refreshDashboard().catch(()=>{});if(rl&&!event.agentId&&event.sessionId===session.id&&event.model===model)rl.footer.cache=event.cache;print(`  tokens ${event.inputTokens??'?'} in / ${event.outputTokens??'?'} out · cost ${event.cost==null?'unknown'+(event.estimatedCost!=null?` · estimate ceiling $${event.estimatedCost.toFixed(6)}`:''):'$'+event.cost.toFixed(6)}`);}
 
  }});
 
@@ -267,27 +304,59 @@ export async function run(args=process.argv.slice(2)){
 
   if(!model)throw Error('Select provider:MODEL with /model. Use /providers and /models for choices.');
 
-  busy=true;lastPrinted='';rl?.startWorking();try{
+  const currentSession=session,currentProject=project,currentModel=model,currentMode=mode;
+  if(personalTurns.has(currentSession.id)){print(JSON.stringify(await runtime.steer({sessionId:currentSession.id,content:message})));return;}
+  busy=true;lastPrinted='';rl?.startWorking();const token={};personalTurns.set(currentSession.id,token);try{
 
-   const result=await runtime.chat({projectId:project.id,sessionId:session.id,message,model,mode,...extra});
+   const recoveryChoice=nextRecovery;nextRecovery=undefined;
+   const result=await runtime.chat({projectId:currentProject.id,sessionId:currentSession.id,message,model:currentModel,mode:currentMode,contextPolicy:'private',recoveryChoice,...extra});
 
    if(options.json)stdout.write(JSON.stringify(result)+'\n');
 
-   else if(result.content&&result.content!==lastPrinted)rendered(rl?starAnswer(terminalText(result.content)):result.content);
+   else if(result.content&&result.content!==lastPrinted&&session.id===currentSession.id&&groupControl?.tab!=='group')rendered(rl?starAnswer(terminalText(result.content)):result.content);
 
+   if(result.parked)print('Work parked with saved progress. Review /attention; no model requests continue while waiting.');
    if(result.error)process.exitCode=1;
 
-  }finally{busy=false;rl?.stopWorking();}
+  }finally{personalTurns.delete(currentSession.id);busy=personalTurns.size>0||Boolean(groupControl?.activeCount);if(!busy)rl?.stopWorking();await refreshDashboard();}
 
  };
 
- const interrupt=()=>{if(nativeBusy)return;for(const id of pendingApprovals)runtime.approve({id,approved:false}).catch(()=>{});if(busy){rl?.cancelQuestion();runtime.cancel({sessionId:session.id});print('\nCancelling…');}else{closing=true;rl?.close();}};
+ const interrupt=()=>{if(nativeBusy)return;for(const id of pendingApprovals)runtime.approve({id,approved:false}).catch(()=>{});if(busy){shellAbort?.abort();rl?.cancelQuestion();runtime.cancel({sessionId:session.id});if(groupControl?.tab==='group')groupControl.cancel().catch(e=>print(e.message));print('\nCancelling…');}else{closing=true;rl?.close();}};
 
  process.on('SIGINT',interrupt);rl?.on('SIGINT',interrupt);
 
- const escape=()=>{if(busy)interrupt();};rl?.on('cancel',escape);
+ const escape=()=>{if(busy||groupControl?.activeCount)interrupt();};rl?.on('cancel',escape);
 
- async function setMode(value){if(!['build','plan'].includes(value))throw Error('Choose build or plan');mode=value;if(rl){rl.mode=mode;rl.render();}await store.writeSettings({defaultMode:mode});}
+ async function setMode(value){if(!['build','plan'].includes(value))throw Error('Choose build or plan');mode=value;if(value==='build'&&permissions==='read-only')permissions='ask';if(rl){rl.permissions=permissions;}if(rl){rl.mode=mode;rl.render();}await store.writeSettings({defaultMode:mode,permissions});}
+
+ async function setPermissions(value){
+  if(!PERMISSIONS.includes(value))throw Error('Choose ask, auto or read-only');
+  permissions=value;mode=value==='read-only'?'plan':'build';
+  if(rl){rl.permissions=value;rl.mode=mode;rl.render();}
+  await store.writeSettings({permissions:value,defaultMode:mode});
+ }
+ rl?.on('permissions',()=>{if(!busy&&rl.active?.history){const current=mode==='plan'?'read-only':permissions;setPermissions(PERMISSIONS[(PERMISSIONS.indexOf(current)+1)%PERMISSIONS.length]).catch(e=>print(e.message));}});
+ const menuContext={ui:rl,store,runtime,vault,project:()=>project,session:()=>session,mode:()=>mode,print,command:line=>command(line),select:value=>{model=value.model;mode=value.mode;if(rl)rl.mode=mode;},setPermissions};
+ const setup=()=>popupSetup(menuContext);
+ async function refreshDashboard(){
+  if(!rl)return;
+  const messages=(await store.getSession(session.id)).messages;
+  const projection=(await store.records('events',{projectId:project.id,type:'context_projection'})).filter(e=>e.data.sessionId===session.id&&!e.data.agentId).at(-1)?.data;
+  const groupDashboard=groupControl?.dashboard();if(groupDashboard){rl.dashboard=groupDashboard;rl.footer.model='shared chat · owner-local model pool';rl.footer.cache=null;rl.footer.cacheVisible=false;if(rl.active?.history)rl.render();return;}
+  const savedUsage=messages.filter(m=>m.usage&&!m.usage.inherited).map(m=>m.usage),totalTokens=savedUsage.length&&savedUsage.every(u=>u.inputTokens!=null&&u.outputTokens!=null)?savedUsage.reduce((n,u)=>n+u.inputTokens+u.outputTokens,0):null;rl.footer.model=(model||'select /model')+(totalTokens!=null?' · '+totalTokens+' tokens':'');rl.footer.cache=latestCache(messages,model);rl.footer.cacheVisible=(await store.readSettings()).cacheTimer!==false;
+  rl.dashboard=dashboardRows({messages,model,settings:await store.readSettings(),projection:projection||lastProjection,mcps:(await runtime.listMcp()).filter(m=>!m.projectId||m.projectId===project.id)});
+  if(rl.active?.history)rl.render();
+ }
+ let menuBusy=false;
+ rl?.on('mcp',id=>{if(busy||menuBusy||!rl.active?.history)return;menuBusy=true;rl.withOverlay(()=>mcpMenu(menuContext,id)).catch(e=>print(e.message)).finally(async()=>{menuBusy=false;await refreshDashboard().catch(e=>print(e.message));});});
+ const shellContext={store,project:()=>project,session:()=>session,model:()=>model,print,chat,
+  confirm:async text=>/^y(?:es)?$/i.test((await rl.question(text+' [y/N]')).trim()),
+  execute:async command=>{
+   shellAbort=new AbortController();busy=true;rl.startWorking();rl.setActivity('Running local command');
+   try{return await executeShell(command,{cwd:project.path,signal:shellAbort.signal});}
+   finally{busy=false;shellAbort=null;rl.stopWorking();}
+  }};
 
  rl?.on('mode',()=>{if(!busy&&rl.active?.history)setMode(mode==='build'?'plan':'build').catch(e=>print(e.message));});
 
@@ -306,6 +375,21 @@ export async function run(args=process.argv.slice(2)){
  const accountControl=accountCommands({store,mode:()=>mode,print,confirm:async text=>rl?/^y(?:es)?$/i.test((await rl.question(text+' [y/N]')).trim()):false,invalidateModels:()=>runtime.invalidateModels(),secret:async (text,{trim=true}={})=>{if(!rl)throw Error('Account login needs hidden interactive input');const result=await rl.question(text,{secret:true,preserveWhitespace:!trim});return trim?result.trim():result;}});
  const remoteControl=remoteCommands({store,project:()=>project,session:()=>session,model:()=>model,mode:()=>mode,print,secret:async text=>{if(!rl)throw Error('Hidden pairing needs an interactive terminal');return (await rl.question(text,{secret:true})).trim();},confirm:async text=>rl?/^y(?:es)?$/i.test((await rl.question(text+' [y/N]')).trim()):options.approve===true});
 
+ groupControl=groupCommands({ui:rl,store,runtime,mode:()=>mode,active:()=>personalTurns.size>0||Boolean(groupControl?.activeCount),project:()=>project,session:()=>session,model:()=>model,print,selectSession:value=>{session=value;},refresh:()=>{busy=personalTurns.size>0||Boolean(groupControl?.activeCount);if(rl){rl.chatTabs=groupControl?.label();if(rl.active?.history)refreshDashboard().catch(e=>print(e.message));}}});
+ rl?.on('tabs',()=>{if(menuBusy||pendingApprovals.size||!rl.active?.history)return;menuBusy=true;groupControl.menu().catch(e=>print(e.message)).finally(()=>{menuBusy=false;rl.chatTabs=groupControl.label();rl.render();});});
+
+ const visionaryContext={ui:rl,store,runtime,project:()=>project,session:()=>session,mode:()=>mode,print,
+  confirm:async message=>rl?await rl.dialog({title:message,items:[{value:false,label:'Cancel'},{value:true,label:'Confirm this exact action'}]})===true:false,
+  runTask:async fn=>{if(busy)throw Error('Finish or park active work first');shellAbort=new AbortController();busy=true;rl?.startWorking();try{return await fn(shellAbort.signal);}finally{busy=false;shellAbort=null;rl?.stopWorking();await refreshDashboard();}}
+ };
+ const mcpPolicyControl=mcpPolicyCommands(visionaryContext);
+ const inspectorControl=inspectorCommands({...visionaryContext,command:line=>command(line)});
+ const experimentControl=experimentCommands(visionaryContext),contractControl=projectContractCommands(visionaryContext),attentionControl=attentionCommands(visionaryContext);
+ const vaultCommand=vaultCommands({ui:rl,store,project:()=>project,mode:()=>mode,print});
+ const continuityCommand=continuityCommands({ui:rl,store,runtime,project:()=>project,model:()=>model,mode:()=>mode,print,runTask:async fn=>{shellAbort=new AbortController();busy=true;rl?.startWorking();try{return await fn(shellAbort.signal);}finally{busy=false;shellAbort=null;rl?.stopWorking();}}});
+ const communityCommand=communityCommands({ui:rl,store,runtime,project:()=>project,session:()=>session,model:()=>model,mode:()=>mode,print,command:line=>command(line),setRecovery:value=>{nextRecovery=value;},runTask:async fn=>{shellAbort=new AbortController();busy=true;rl?.startWorking();try{return await fn(shellAbort.signal);}finally{busy=false;shellAbort=null;rl?.stopWorking();}}});
+ const insightCommand=insightCommands({ui:rl,store,project:()=>project,session:()=>session,mode:()=>mode,print,chat,selectSession:value=>{session=value;}});
+ const workCommand=workCommands({ui:rl,store,runtime,vault,project:()=>project,session:()=>session,model:()=>model,mode:()=>mode,print,selectSession:value=>{session=value;},insight:name=>insightCommand.command('/'+name,''),community:name=>['outbox','support','research','eval','lab'].includes(name)?continuityCommand.command('/'+name,''):communityCommand.command('/'+name,''),native,nativeVersion,runTask:async fn=>{shellAbort=new AbortController();busy=true;rl?.startWorking();try{return await fn(shellAbort.signal);}finally{busy=false;shellAbort=null;rl?.stopWorking();}},integrationLogin:async service=>{if(!rl)throw Error('Login needs an interactive terminal');nativeBusy=true;rl.pause();try{return await integrationLogin(service,project.path);}finally{nativeBusy=false;rl.resume();}}});
  const extensionCommand=extensionCommands({store,runtime,project:()=>project,session:()=>session,model:()=>model,mode:()=>mode,print,chat,secret:async title=>{if(!rl)throw Error('Hidden credentials need an interactive terminal');return (await rl.question(title,{secret:true})).trim();},confirm:async message=>rl?/^y(?:es)?$/i.test((await rl.question(message+' [y/N]')).trim()):options.approve===true});
 
  const cacheCommand=cacheCommands({store,print,session:()=>session,model:()=>model,setVisible:visible=>{if(rl){rl.footer.cacheVisible=visible;rl.refreshFooter();}}});
@@ -316,14 +400,35 @@ export async function run(args=process.argv.slice(2)){
 
   if(name==='/exit'||name==='/quit'){closing=true;return;}
 
-  if(name==='/help')return print(HELP+FEATURE_HELP+EXTENSION_HELP+REMOTE_HELP+ACCOUNT_HELP+FREE_HELP+CACHE_HELP);
-  if(name==='/collaborate')return print(COLLABORATE_GUIDE);
-  if(name==='/setup'){
-   if(!rl)throw Error('Guided setup requires an interactive terminal.');
-   return guidedSetup({store,runtime,vault,project:()=>project,print,
-    question:text=>rl.question(text),secret:text=>rl.question(text,{secret:true}),
-    confirm:async text=>/^y(?:es)?$/i.test((await rl.question(text+' [y/N]')).trim()),
-    select:value=>{model=value.model;mode=value.mode;rl.mode=mode;},chat});
+  if((personalTurns.size||groupControl?.activeCount)&&!['/tabs','/group','/history','/usage','/help','/exit','/quit','/attention','/perf','/health','/evidence','/history-search'].includes(name))throw Error('An agent is active. Switch tabs, send steering or cancel before changing configuration.');
+  if(await mcpPolicyControl.command(name,rest))return;
+  if(await inspectorControl.command(name,rest))return;
+  if(await attentionControl.command(name,rest))return;
+  if(await experimentControl.command(name,rest))return;
+  if(await contractControl.command(name,rest))return;
+  if(await groupControl.command(name,rest))return;
+  if(name==='/help')return print(HELP+FEATURE_HELP+EXTENSION_HELP+REMOTE_HELP+ACCOUNT_HELP+FREE_HELP+CACHE_HELP+WORK_HELP+INSIGHT_HELP+COMMUNITY_HELP+CONTINUITY_HELP+VAULT_GRAPH_HELP+GROUP_HELP+EXPERIMENT_HELP+CONTRACT_HELP+ATTENTION_HELP+INSPECTOR_HELP+MCP_POLICY_HELP);
+  if(name==='/collaborate-guide')return print(COLLABORATE_GUIDE);
+  if(await vaultCommand.command(name,rest))return;
+  if(await continuityCommand.command(name,rest))return;
+  if(await communityCommand.command(name,rest))return;
+  if(await insightCommand.command(name,rest))return;
+  if(await workCommand.command(name,rest))return;
+  if(name==='/effort'){await effortMenu(menuContext,rest);return;}
+  if(name==='/model'&&!rest&&rl){const selected=await rl.withOverlay(()=>modelMenu(menuContext));if(selected){model=selected.model;await store.writeSettings({defaultModel:model});print('Model: '+model);}return;}
+  if(name==='/mcp'&&!rest&&rl)return mcpMenu(menuContext);
+  if(name==='/setup'){if(!rl)throw Error('Setup needs an interactive terminal');return setup();}
+  if(name==='/permissions'){
+   if(rest){await setPermissions(rest);}
+   return print('Permissions: '+(mode==='plan'?'read-only':permissions)+'. Auto allows bounded project source/text writes and exact location/time commands; other execution, external calls and protected files ask. Shells are not sandboxed.');
+  }
+  if(name==='/commands'){
+   const rows=await store.records('events',{projectId:project.id,type:'shell_command'});
+   if(!rest)return print(rows.slice(-20).map(r=>r.id+'  '+r.data.command+'  exit '+r.data.exitCode).join('\n')||'No saved shell receipts. Type !command to execute one locally.');
+   const send=rest.startsWith('send '),id=send?rest.slice(5).trim():rest,row=rows.find(r=>r.id===id);
+   if(!row)throw Error('Choose a receipt ID from /commands');
+   if(send)return shareShellReceipt(shellContext,row);
+   return print(JSON.stringify(row.data,null,2));
   }
 
   if(await cacheCommand(name,rest))return;
@@ -428,7 +533,7 @@ export async function run(args=process.argv.slice(2)){
 
   if(name==='/history'){return print((await store.getSession(session.id)).messages.map(m=>`${m.role}${m.agentId?' ['+m.agentId.slice(0,8)+']':''}: ${m.content}`).join('\n\n'));}
 
-  if(name==='/usage'){const messages=(await store.getSession(session.id)).messages,usage=messages.filter(m=>m.usage).map(m=>m.usage);return print(JSON.stringify({calls:usage.length,inputTokens:usage.every(u=>u.inputTokens!=null)?usage.reduce((a,u)=>a+u.inputTokens,0):null,outputTokens:usage.every(u=>u.outputTokens!=null)?usage.reduce((a,u)=>a+u.outputTokens,0):null,cost:usage.length&&usage.every(u=>u.cost!=null)?usage.reduce((a,u)=>a+u.cost,0):null},null,2));}
+  if(name==='/usage'){const messages=(await store.getSession(session.id)).messages,usage=messages.filter(m=>m.usage&&!m.usage.inherited).map(m=>m.usage);return print(JSON.stringify({calls:usage.length,inputTokens:usage.every(u=>u.inputTokens!=null)?usage.reduce((a,u)=>a+u.inputTokens,0):null,outputTokens:usage.every(u=>u.outputTokens!=null)?usage.reduce((a,u)=>a+u.outputTokens,0):null,cost:usage.length&&usage.every(u=>u.cost!=null)?usage.reduce((a,u)=>a+u.cost,0):null},null,2));}
 
   if(name==='/project'){if(rest){project=await store.createProject({name:path.basename(path.resolve(rest)),path:path.resolve(rest)});session=await store.createSession({projectId:project.id,title:'Terminal chat'});}return print(project.path);}
 
@@ -473,11 +578,15 @@ export async function run(args=process.argv.slice(2)){
   await accountControl.start();rendered(headerLines(rl.width).join('\n'));
 
   print(fg(PALETTE.dim,`Session ${session.id} · /model to select a provider · Esc cancels\n`));
+  if((await store.readSettings()).onboardingVersion<2||!(await store.readSettings()).onboardingVersion){
+   try{await setup();}catch(error){if(closing)return;print('Setup incomplete: '+error.message+'. Saved choices are retained. /setup retries the guide.');}
+  }
+  if(options.continue){const next=await rl.dialog({title:'Resume project',description:session.title,items:[{value:'continue',label:'Continue chat'},{value:'handoff',label:'Inspect the project handoff first'}]});if(next==='handoff')await insightCommand.handoffMenu();}
   if(!model)print('First run: /setup guides provider, model, price and Plan mode. /collaborate walks through a two-person project.');
 
   while(!closing){
 
-   const messages=(await store.getSession(session.id)).messages,usage=messages.filter(m=>m.usage).map(m=>m.usage);
+   const messages=(await store.getSession(session.id)).messages,usage=messages.filter(m=>m.usage&&!m.usage.inherited).map(m=>m.usage);
 
    const tokens=usage.length&&usage.every(u=>u.inputTokens!=null&&u.outputTokens!=null)?usage.reduce((n,u)=>n+u.inputTokens+u.outputTokens,0):null;
 
@@ -485,13 +594,23 @@ export async function run(args=process.argv.slice(2)){
 
    rl.footer={cache:latestCache(messages,model),cacheVisible:(await store.readSettings()).cacheTimer!==false,cwd:project.path,model:(model||'select /model')+(tokens!=null?` · ${tokens} tokens · ${cost}`:'')};
 
+   if(rl){rl.chatTabs=groupControl.label();rl.setChatChannel(groupControl.channel());}
+   await refreshDashboard();
    let line;try{line=(await rl.question('',{history:true})).trim();}catch{break;}
 
-   if(!line)continue;try{if(line.startsWith('/')&&!rl.lastSubmission?.pasted)await command(line);else await chat(line);}catch(error){print('APEX: '+error.message);}
+   if(!line)continue;
+   try{
+    if(line.startsWith('/')&&!rl.lastSubmission?.pasted)await command(line);
+    else if(line.startsWith('!')){
+     if(personalTurns.size||groupControl.activeCount)throw Error('Finish or cancel active work before entering a local shell command');
+     if(rl.lastSubmission?.pasted&&!await shellContext.confirm('Run this pasted shell command locally? Shells are not sandboxed.')){print('Command not executed or sent to the model.');continue;}
+     await shellTurn(shellContext,line.slice(1));
+    }else if(!await groupControl.submit(line)){const task=chat(line).catch(error=>print('APEX: '+error.message));personalTasks.add(task);task.finally(()=>personalTasks.delete(task));}
+   }catch(error){print('APEX: '+error.message);}
 
   }
 
- }finally{closing=true;for(const child of shells.values())stopShell(child);features.close();await accountControl.close();await remoteControl.close();await runtime.close();await store.flush();rl?.close();process.removeListener('SIGINT',interrupt);}
+ }finally{closing=true;await groupControl?.close();for(const id of personalTurns.keys())await runtime.cancel({sessionId:id});for(const child of shells.values())stopShell(child);features.close();await accountControl.close();await remoteControl.close();await runtime.close();await Promise.allSettled([...personalTasks]);await store.flush();rl?.close();process.removeListener('SIGINT',interrupt);}
 
 }
 

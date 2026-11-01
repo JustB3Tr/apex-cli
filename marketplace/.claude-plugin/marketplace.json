@@ -1,1 +1,32 @@
-{"name":"apex-official","owner":{"name":"APEX contributors"},"plugins":[{"name":"apex-dev","description":"Evidence-first planning, code review and debugging workflows.","version":"0.6.0","source":"./plugins/apex-dev"},{"name":"apex-frontend","description":"Frontend implementation and accessibility verification workflows.","version":"0.6.0","source":"./plugins/apex-frontend"}]}
+{
+  "name": "apex-official",
+  "owner": {
+    "name": "APEX contributors"
+  },
+  "plugins": [
+    {
+      "name": "apex-dev",
+      "description": "Planning, review and debugging plus three evidence-labelled collaboration recipes.",
+      "version": "0.13.0",
+      "source": "./plugins/apex-dev"
+    },
+    {
+      "name": "apex-frontend",
+      "description": "Frontend implementation and accessibility verification workflows.",
+      "version": "0.6.0",
+      "source": "./plugins/apex-frontend"
+    },
+    {
+      "name": "apex-work",
+      "description": "Task agreements, versioned decisions, work claims and project passports.",
+      "version": "0.11.0",
+      "source": "./plugins/apex-work"
+    },
+    {
+      "name": "apex-services",
+      "description": "GitHub and Vercel workflows using explicit targets and owner accounts.",
+      "version": "0.11.0",
+      "source": "./plugins/apex-services"
+    }
+  ]
+}

@@ -1,1 +1,4 @@
 .apex-draft{display:block;min-height:180px;width:100%;margin:12px 0;resize:vertical}.apex-note-link{display:block;padding:6px 0}.workspace-leaf-content[data-type="apex-local-vault"]{padding:12px}
+
+.apex-task-input { display: block; width: 100%; margin: 4px 0 12px; }
+.apex-graph-toolbar{display:flex;gap:8px;align-items:center;flex-wrap:wrap}.apex-graph-toolbar label{display:flex;align-items:center;gap:4px}.apex-graph-viewport{margin-top:12px;border:1px solid var(--background-modifier-border);border-radius:10px;background:var(--background-primary);overflow:hidden;touch-action:none}.apex-graph-viewport svg{display:block;min-height:300px}.apex-graph-node{cursor:pointer}.apex-graph-node:focus{outline:2px solid var(--interactive-accent)}.apex-graph-info button{margin:4px}.apex-graph-info{padding:12px 0}.apex-graph-view input[type=search]{min-width:180px;max-width:100%}

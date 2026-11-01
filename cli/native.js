@@ -1,6 +1,9 @@
 import {access,readFile} from 'node:fs/promises';
 import {spawn} from 'node:child_process';
+import {execFile} from 'node:child_process';
+import {promisify} from 'node:util';
 import path from 'node:path';
+export async function nativeVersion(provider){const binary=await nativeExecutable(provider),command=typeof binary==='string'?binary:binary.command,args=[...(binary.prefix||[]),'--version'];const result=await promisify(execFile)(command,args,{windowsHide:true,timeout:10000,maxBuffer:20000,env:{...process.env,NODE_TLS_REJECT_UNAUTHORIZED:'1'}});return String(result.stdout||result.stderr).trim().slice(0,300);}
 
 /** Resolve executables without shell-interpolating prompts or credentials. */
 export async function nativeExecutable(provider){

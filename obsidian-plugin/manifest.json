@@ -1,1 +1,9 @@
-{"id":"apex-vault","name":"APEX Vault","version":"0.5.0","minAppVersion":"1.5.0","description":"Local shared-chat notes, project context and an explicit draft outbox for APEX CLI.","author":"APEX contributors","isDesktopOnly":false}
+{
+  "id": "apex-vault",
+  "name": "APEX Vault",
+  "version": "0.15.0",
+  "minAppVersion": "1.5.0",
+  "description": "Local vault graph, context, explicitly promoted task drafts and linked outcomes.",
+  "author": "APEX contributors",
+  "isDesktopOnly": false
+}
