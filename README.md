@@ -6,11 +6,11 @@
 
 A terminal-native coding workspace built around **collaboration**, **saved context** and an **Obsidian-compatible vault**. Bring your own API provider or local model, work in personal and shared chats, and keep decisions connected to the code and evidence behind them.
 
-**Local version 0.17.0** · **MIT licensed** · **Node.js 22+** (24 recommended) · **Private development repository**
+**Early release 0.17.1** · **MIT licensed** · **Node.js 22+** (24 recommended) · **Open source**
 
 [Get started](#get-started) · [Why APEX](#why-apex) · [Collaboration](#collaborate-with-people-and-their-agents) · [Commands](#command-reference) · [Development](#development-and-verification)
 
-![APEX terminal with a live response preview, an editable composer and project status](docs/images/terminal-streaming.png)
+![APEX terminal with a live response preview, an editable composer and project status](https://raw.githubusercontent.com/JustB3Tr/apex-cli/master/docs/images/terminal-streaming.png)
 
 </div>
 
@@ -34,22 +34,27 @@ APEX is its own coding-agent harness, with optional handoffs to installed offici
 
 ## Get started
 
-### 1. Install this private source snapshot
+### 1. Install APEX
 
-You need Node.js 22 or newer, npm and Git. Node 24 is the development recommendation. The GitHub CLI makes authenticated cloning straightforward:
+You need Node.js 22 or newer and npm; Node 24 is recommended.
 
 ```sh
-gh auth login
-gh repo clone JustB3Tr/apex-cli-private
-cd apex-cli-private
+npm install --global apex-agent-cli
+apex
+```
+
+The package is `apex-agent-cli`; the command it installs is `apex`. If you are trying the first release before its registry entry appears, install the public source instead:
+
+
+```sh
+git clone https://github.com/JustB3Tr/apex-cli.git
+cd apex-cli
 npm ci
 npm install --global . --ignore-scripts
 apex --version
 ```
 
-The repository is private: your GitHub account needs access. If you use Git instead of `gh`, use your configured Git credential manager or SSH authentication. Do not paste a token into a clone URL.
-
-This README does **not** assume a current npm registry release. The package name is `apex-agent-cli`; the installed command is `apex`. A future registry release is a separate step described in [PUBLISHING.md](PUBLISHING.md).
+Source installation also needs Git. No central API account or APEX signup is required for the basic local workflow. Registry publishing and future maintainer releases are described in [PUBLISHING.md](PUBLISHING.md).
 
 ### 2. Open a project
 
@@ -85,7 +90,7 @@ APEX does not download models or reserve hardware just because an endpoint is li
 
 ## Collaborate with people and their agents
 
-![Two-person shared chat, explicit agent invocation, steering and personal/group tabs](docs/images/shared-workspace.png)
+![Two-person shared chat, explicit agent invocation, steering and personal/group tabs](https://raw.githubusercontent.com/JustB3Tr/apex-cli/master/docs/images/shared-workspace.png)
 
 1. Start with `/collaborate` for the guided workflow. Create or join a room through a configured collaboration hub.
 2. Open `/group`. Ordinary messages go to people; `@apex` invokes an opted-in agent.
@@ -106,7 +111,7 @@ Multiple opted-in owners can work concurrently with declared scopes and conflict
 
 ## Project knowledge with connections
 
-![Native vault graph showing notes, backlinks and explicit connections](docs/images/vault-graph.png)
+![Native vault graph showing notes, backlinks and explicit connections](https://raw.githubusercontent.com/JustB3Tr/apex-cli/master/docs/images/vault-graph.png)
 
 `/vault` opens the local big-picture graph. Search and inspect notes, follow backlinks, change the view or export an Obsidian Canvas. Private and shared visibility are explicit. Vault content is reference material, not permission to execute instructions found in a note.
 
@@ -114,7 +119,7 @@ A vault is optional. APEX works with an existing vault or creates local Markdown
 
 ## A workbench for long-running tasks
 
-![Native APEX workbench menu for tasks, human questions, context and diagnostics](docs/images/workbench.png)
+![Native APEX workbench menu for tasks, human questions, context and diagnostics](https://raw.githubusercontent.com/JustB3Tr/apex-cli/master/docs/images/workbench.png)
 
 `/workbench` brings the main inspection tools together. `/task-brief` stores versioned human-owned objectives and constraints, `/attention` handles parked questions, and `/evidence JOB_ID` distinguishes actual receipts from model assertions. `/perf` records local phase timings without a model call. `/context inspect` explains what was selected or omitted from the next model request.
 
@@ -219,4 +224,4 @@ The repository includes test-on-push CI and a **manual** npm publishing workflow
 
 ## License
 
-[MIT](LICENSE). Third-party notices and licenses are in [NOTICE](NOTICE) and [licenses/](licenses/). Source licensing does not grant access to this private repository or free access to third-party model services.
+[MIT](LICENSE). Third-party notices and licenses are in [NOTICE](NOTICE) and [licenses/](licenses/). The license does not include free access to third-party model services.

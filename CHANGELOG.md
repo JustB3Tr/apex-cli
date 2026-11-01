@@ -111,3 +111,11 @@ Production scale/retention, full conversation compaction, token streaming and th
 - Added opt-in isolated shell copies, exact expiring MCP grants, cross-platform provider credential backends and plain terminal menus.
 - Added ephemeral encrypted presence, human attention, pinned requirements/orientation/changesets, portable failure cases and confined rehearsal/extension trials.
 - Retains approval, privacy and original budget boundaries; no automatic paid retries or public release.
+
+## 0.17.1 public release preparation
+
+- Fixed Windows hosted-runner credential startup by loading the signed framework assembly directly, preserving the sanitized child environment and DPAPI protection.
+- Removed native encryption startup from the vault metadata lock so unrelated key saves cannot block each other.
+- Fixed canonical vault Canvas destinations through Windows folder aliases while preserving outside-vault rejection.
+- Added bounded CI workers and regression coverage; 316 tests, runtime self-tests and package checks passed on GitHub.
+- Refreshed the public README, package metadata and GitHub-built release-artifact workflow. Registry publication is verified separately.

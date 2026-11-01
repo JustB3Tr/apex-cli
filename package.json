@@ -1,6 +1,6 @@
 {
   "name": "apex-agent-cli",
-  "version": "0.17.0",
+  "version": "0.17.1",
   "description": "APEX CLI: collaborative coding agents, saved context and an Obsidian-compatible local vault",
   "type": "module",
   "bin": {
@@ -69,11 +69,11 @@
   },
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/JustB3Tr/apex-cli-private.git"
+    "url": "git+https://github.com/JustB3Tr/apex-cli.git"
   },
-  "homepage": "https://github.com/JustB3Tr/apex-cli-private#readme",
+  "homepage": "https://github.com/JustB3Tr/apex-cli#readme",
   "bugs": {
-    "url": "https://github.com/JustB3Tr/apex-cli-private/issues"
+    "url": "https://github.com/JustB3Tr/apex-cli/issues"
   },
   "publishConfig": {
     "access": "public",

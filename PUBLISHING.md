@@ -1,52 +1,51 @@
 # Publishing APEX
 
-Source repository: https://github.com/JustB3Tr/apex-cli, default branch master.
-Package: apex-agent-cli. Installed command: apex.
+Public source: https://github.com/JustB3Tr/apex-cli, branch `master`.
+Package: `apex-agent-cli`. Installed command: `apex`.
+The separate `apex-cli-private` repository remains private.
 
-Publication is currently paused. The local working build is 0.15.0; installing it locally does not update GitHub/npm. Do not reuse credentials pasted in old chats. Fresh account/name checks and explicit release authorization are required before publishing; historical authentication checks below may be stale.
+## Release from GitHub source
 
-Local release checks: build the plugin from its source, run the complete suite/runtime checks, exercise the terminal and graph SDK/browser fixtures, inspect `npm pack` for private state and compare packaged/installed bytes. Current recipes and diagnostics are data, not paid release jobs. No check requires a real provider request. `VALIDATION.md` names the evidence boundaries.
+1. Commit the intended version and lockfile, README, license/notice and workflow changes.
+2. Run the manual **Build verified npm artifact** workflow (`release-artifact.yml`) against `master`. It checks out GitHub source, installs dependencies, runs all CI tests and runtime self-tests, builds the tarball, compares its contents to that checkout and uploads the tarball/checksum/proof. It does not publish to npm.
+3. Download that run's `apex-npm-release` artifact. Verify its version, commit and SHA-256 against the GitHub run and proof before publishing. Do not substitute an older locally built tarball.
+4. Attach the verified GitHub-built tarball and checksum to the matching versioned GitHub release. A draft can remain unpublished until registry publication succeeds.
 
-## First public release
+The workflow uses no stored npm token and makes no paid model requests. Public source and a public registry package make their included code/files visible; private state, `.Codex`, credentials, local profiles and raw test artifacts must remain excluded.
 
-The registry lookup returned Not Found on October 30, 2026. This is not a name reservation or a guarantee that npm will accept the name. The local npm session requires authentication.
+## First registry publication
 
-In PowerShell, from the project root:
+A first publication requires the intended npm account. Use npm's own web login; never reuse a token pasted into an old chat or put tokens in repository files.
 
-```powershell
-npm login
+```sh
+npm login --auth-type=web
 npm whoami
-npm publish --dry-run --ignore-scripts
-npm publish --access public --ignore-scripts
+npm publish PATH_TO_VERIFIED_GITHUB_ARTIFACT.tgz --access public --ignore-scripts
 ```
 
-Use your own npm account and complete browser/2FA authentication yourself. Do not paste passwords, OTPs or npm tokens into issues or source files. If npm stages the version, inspect and approve the stage through your npm account. Publishing consumes the version number; subsequent changes need a new version.
+Complete any browser authentication, 2FA or staged-publication approval in the npm account. A browser login or successful dry run does not prove publication. Do not automatically retry an ambiguous publish: inspect the registry version first.
 
-After successful publication:
+After success, independently check the registry and a fresh installation:
 
-```powershell
-npm view apex-agent-cli version
+```sh
+npm view apex-agent-cli version dist.integrity
 npm install --global apex-agent-cli
 apex --version
 ```
 
-Before publication, users can install the GitHub source with `npm install --global github:JustB3Tr/apex-cli#master`. That route does not imply npm registry publication. The package named apex belongs to a different publisher; installing apex-agent-cli provides the apex command.
+Check the downloaded registry tarball against the GitHub-built release artifact. A published version cannot be silently replaced; make another version for further changes. `apex` is the command, not the package name to install.
 
-## Later releases without a stored npm token
+## Later tokenless releases
 
-After the package exists, configure its npm Settings > Trusted publishing:
+After the package exists, configure its npm Settings > Trusted publishing for:
 
 - Provider: GitHub Actions
-- Owner: JustB3Tr
-- Repository: apex-cli
-- Workflow filename: publish.yml
-- Allow direct npm publish if you intend to use this workflow's publish command.
+- Owner: `JustB3Tr`
+- Repository: `apex-cli`
+- Workflow: `publish.yml`
 
-The workflow is manual only, accepts master only, runs Windows regression checks, then publishes on a GitHub-hosted runner with an OIDC identity and provenance. It requires npm 11.5.1+ and Node 22.14+; the workflow uses Node 24/npm 11. It does not embed an npm token. Configure the trust immediately before using it: npm's new trusted publisher configurations expire if their first successful publish is not within two days. The workflow is not proof of live npm permissions or a successful release.
+Then use the manual **Publish npm** workflow. It runs Windows verification before publishing on a GitHub-hosted Linux runner with OIDC/provenance. The package repository URL must match the actual public source repository. Private-repository provenance is not supported by npm's documented flow. No workflow publishes automatically on an ordinary source push.
 
-Source CI uses Windows because saved credential/room state currently depends on Windows DPAPI. Other platforms can use environment credentials/local inference, but full cross-platform validation remains open. No workflow is enabled to publish automatically on push or release creation.
+First-publication bootstrap and future trusted-publisher setup are separate. Do not claim the trusted publisher is configured or a version is available until those states are verified.
 
-Official guidance:
-- https://docs.npmjs.com/creating-and-publishing-unscoped-public-packages/
-- https://docs.npmjs.com/trusted-publishers/
-- https://docs.npmjs.com/requiring-2fa-for-package-publishing-and-settings-modification/
+Official references: [public packages](https://docs.npmjs.com/creating-and-publishing-unscoped-public-packages/), [trusted publishing](https://docs.npmjs.com/trusted-publishers/).
