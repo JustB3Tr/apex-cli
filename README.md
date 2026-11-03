@@ -6,7 +6,7 @@
 
 A terminal-native coding workspace built around **collaboration**, **saved context** and an **Obsidian-compatible vault**. Bring your own API provider or local model, work in personal and shared chats, and keep decisions connected to the code and evidence behind them.
 
-**Early release 0.17.1** · **MIT licensed** · **Node.js 22+** (24 recommended) · **Open source**
+**Early release 0.17.1** · **Source-Available Use License for new releases** · **Node.js 22+** (24 recommended) · **Not open source**
 
 [Get started](#get-started) · [Why APEX](#why-apex) · [Collaboration](#collaborate-with-people-and-their-agents) · [Commands](#command-reference) · [Development](#development-and-verification)
 
@@ -224,4 +224,4 @@ The repository includes test-on-push CI and a **manual** npm publishing workflow
 
 ## License
 
-[MIT](LICENSE). Third-party notices and licenses are in [NOTICE](NOTICE) and [licenses/](licenses/). The license does not include free access to third-party model services.
+New APEX releases are governed by the [APEX CLI Source-Available Use License](LICENSE): users may install and run the unmodified CLI, including for business work, but may not reuse, modify, or redistribute its source. This is not an open-source license. The npm package `apex-agent-cli@0.17.1` and earlier copies already distributed under MIT remain MIT-licensed under the rights granted for those versions. Public GitHub hosting still permits viewing and forking through GitHub as described in [GitHub's Terms of Service](https://docs.github.com/en/site-policy/github-terms/github-terms-of-service); no license can prevent technical copying. Third-party notices and licenses are in [NOTICE](NOTICE) and [licenses/](licenses/). Neither license includes free access to third-party model services.

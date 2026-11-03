@@ -2,7 +2,7 @@
 
 Sponsorship links are **disabled by owner choice**. APEX has no configured funding destination, donation checkout, automatic solicitation or funded inference allowance. `/support` shows that policy. No `.github/FUNDING.yml` destination is invented and no account is opened.
 
-The CLI remains open source and usable with the user's own provider credentials or supported local runtime. Supporting the maintainer does not buy model credits, financial returns, benchmark gains, a release date or a provider listing. The separate sponsored-inference service stays at its existing zero-dollar default; these reporting tools do not fund or enable it.
+The CLI remains usable with the user's own provider credentials or supported local runtime under the APEX CLI Source-Available Use License for new releases. Supporting the maintainer does not buy model credits, financial returns, benchmark gains, a release date or a provider listing. The separate sponsored-inference service stays at its existing zero-dollar default; these reporting tools do not fund or enable it.
 
 `/research` builds a local report with one explicit category: maintenance, evaluation, inference or documentation. Include actual progress, failures and limitations, plus selected project result receipts if useful. The category describes work; it is not an audited allocation of donated money. Billed/held amounts come from selected receipt snapshots, not a live financial audit.
 

@@ -1,9 +1,25 @@
-MIT License
+APEX CLI SOURCE-AVAILABLE USE LICENSE 1.0
 
 Copyright (c) 2026 Relay Workbench contributors
 
-Permission is hereby granted, free of charge, to any person obtaining a copy of this software and associated documentation files (the "Software"), to deal in the Software without restriction, including without limitation the rights to use, copy, modify, merge, publish, distribute, sublicense, and/or sell copies of the Software, and to permit persons to whom the Software is furnished to do so, subject to the following conditions:
+This license applies to APEX CLI software identified as licensed under this file (the "Software"). It does not replace or alter the separate licenses for third-party components listed in NOTICE and licenses/.
 
-The above copyright notice and this permission notice shall be included in all copies or substantial portions of the Software.
+1. Permission to use
+Subject to the limits below, you may download, install, make copies strictly necessary to install, run, and back up the unmodified Software, and use it for any lawful purpose, including personal, educational, internal business, and commercial work. You may configure the Software and use it with your own projects, provider accounts, tools, and data. You retain your rights to your own projects, prompts, data, and outputs. This license does not grant ownership of those materials to the Software's copyright holders.
 
-THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
+2. Limits on the Software's code
+Except for the limited copies needed to install, run, and back up the Software, you may not copy, extract, reuse, incorporate, modify, adapt, translate, or create derivative works from the Software or its source code. You may not publish, distribute, sell, sublicense, share, repackage, or make the Software or its source code available as a separate product or component. You may not remove or obscure copyright or license notices. These limits apply to the Software, not to your own projects, data, prompts, or outputs.
+
+3. Public GitHub repository
+If the Software is hosted in a public GitHub repository, GitHub's Terms of Service grant users certain rights to view and fork repository content through GitHub. This license does not override rights GitHub grants for use of its service. A GitHub fork or copy does not grant permission under this license to use, modify, or redistribute the Software outside the rights provided by GitHub's Terms of Service.
+
+4. Ownership and third-party materials
+The Software is licensed, not sold. All rights not expressly granted here are reserved. Third-party components remain subject to their own license terms, which are included in NOTICE and licenses/ where applicable. This license does not grant rights to APEX or third-party trademarks.
+
+5. Termination
+The permission in Section 1 ends automatically if you materially violate this license. If the violation can be corrected, the permission is reinstated when you correct it within 30 days after receiving notice from the copyright holder.
+
+6. Disclaimer and liability
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE, AND NON-INFRINGEMENT. TO THE MAXIMUM EXTENT PERMITTED BY LAW, THE COPYRIGHT HOLDERS ARE NOT LIABLE FOR ANY CLAIM, DAMAGES, OR OTHER LIABILITY ARISING FROM THE SOFTWARE OR ITS USE.
+
+This is a source-available license, not an open-source license. Earlier versions already distributed under the MIT License remain available under the terms granted for those versions. This license does not revoke rights previously granted.

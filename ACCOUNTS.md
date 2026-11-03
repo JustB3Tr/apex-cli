@@ -1,6 +1,6 @@
 # APEX accounts and saved context
 
-APEX is open source under MIT. Developers bring their own model access. Collaboration, persistent project context and the local Markdown vault work without an APEX account or sponsored model service. Obsidian is an optional compatible reader/editor, not an open-source app fork bundled into APEX.
+New APEX releases are source-available under the APEX CLI Source-Available Use License. Users may run the unmodified CLI, but may not reuse, modify, or redistribute its source. This is not an open-source license. Developers bring their own model access. Collaboration, persistent project context and the local Markdown vault work without an APEX account or sponsored model service. Obsidian is an optional compatible reader/editor, not an open-source app fork bundled into APEX.
 
 Accounts are an optional invite-only, self-hosted beta. This build does not deploy a public APEX cloud, sell subscriptions or supply API credits. Both sponsorship caps default to **$0**. A zero cap rejects inference before reading a sponsor key or making an upstream request.
 
